@@ -732,6 +732,12 @@ def draw_upcoming_events(canvas, fonts, calendar):
                         # More lines for event, use event inner padding
                         y_offset += event_row_height + event_row_inner_padding
 
+            # If the dow ends below the event, move the y coordinate down
+            # to give proper padding between the bottom of the text
+            # and the next row
+            if day_end[1] > y_offset:
+                y_offset += event_row_height - (dow_end_y - dow_start_y)
+
             # Draw line separating dates
             line_coords = (x_offset, y_offset, x_offset + 178, y_offset)
 

@@ -158,29 +158,39 @@ class CalendarAPI(ABC):
                     self.events[event_date.date()] = []
 
                 if event_date.date() == start_date.date():
-                    event_start = datetime.combine(event_date.date(), start_date.time())
-                    event_end = None
-                    all_day_event = False
+                    if start_date.time() == time(0, 0):
+                        event_start = event_date
+                        event_end = event_date
+                        all_day_event = True
+                    else:
+                        event_start = datetime.combine(event_date.date(), start_date.time())
+                        event_end = None
+                        all_day_event = False
                 elif event_date.date() == end_date.date():
-                    event_start = None
-                    event_end = datetime.combine(event_date.date(), end_date.time())
-                    all_day_event = False
+                    if end_date.time() == time(0, 0):
+                        event_start = event_date
+                        event_end = event_date
+                        all_day_event = True
+                    else:
+                        event_start = None
+                        event_end = datetime.combine(event_date.date(), end_date.time())
+                        all_day_event = False
                 else:
                     event_start = event_date
                     event_end = event_date
                     all_day_event = True
 
                 new_event = CalendarEvent(
-                                        event_name= f'{event_name} (Day {i+1}/{duration_days})'
-                                        , start_date= event_start
-                                        , end_date= event_end
-                                        , all_day_event= all_day_event
-                                        , multi_day_event = True)
+                                event_name= f'{event_name} (Day {i+1}/{duration_days})'
+                                , start_date= event_start
+                                , end_date= event_end
+                                , all_day_event= all_day_event
+                                , multi_day_event = True)
 
-            # Check to see if the event is already on the calendar
-            # If not, add the event to the dictonary, using the start date as the key
-            if new_event not in self:
-                self.events[event_date.date()].append(new_event)
+                # Check to see if the event is already on the calendar
+                # If not, add the event to the dictonary, using the start date as the key
+                if new_event not in self:
+                    self.events[event_date.date()].append(new_event)
 
     def add_event(self, *args):
         '''

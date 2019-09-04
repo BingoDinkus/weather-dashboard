@@ -123,7 +123,7 @@ class GoogleCalendar(CalendarAPI):
         for cal in calendar_ids:
             #pylint: disable=no-member
             events_result = calendar_service.events().list(calendarId=cal
-                                                , timeMin=now, maxResults=5
+                                                , timeMin=now, maxResults=10
                                                 , singleEvents=True
                                                 , orderBy='startTime').execute()
             gcalendar_items.extend(events_result.get('items', []))

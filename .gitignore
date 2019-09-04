@@ -4,6 +4,8 @@
 # Project specific
 dashboard.bmp
 *.old.*
+*.new.*
+*.ignore.*
 
 # Log files/folders
 logs/
