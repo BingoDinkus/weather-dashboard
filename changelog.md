@@ -4,3 +4,11 @@
 * Fixed issue with multi-day events being added incorrectly
 * Multi-day events where the start/end date are all day now show correctly as "All Day"
 * Added more breathing room for days with only 1 event and a single line title
+
+# v1.02: Debugging & Calendar Fix (2019-09-29)
+* Renamed darkskyio to darksky (module & class)
+* Additional debugging in AccuWeather & DarkSky modules
+* Reworked refresh mechanism for AccuWeather
+* Fixed Off-By-One-Error with multi-day calendar events
+* Fixed bug preventing DarkSky alerts from being updated
+* Fixed bug preventing NWS alerts from being displayed

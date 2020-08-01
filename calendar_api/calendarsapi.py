@@ -85,17 +85,22 @@ class CalendarAPI(ABC):
         if not (isinstance(end_date, datetime) or isinstance(end_date, date)):
             raise TypeError(f'end_date: Expected date or datetime. Received {type(end_date)}')
 
+        # Set start_date to a datetime with midnight as the time
         if isinstance(start_date, datetime):
             # Set start_date to midnight
             start_date = start_date.replace(hour = 0, minute = 0, second = 0, microsecond = 0)
+        else:
+            start_date = datetime.combine(start_date, time.min)
+
+        if isinstance(end_date, datetime):
+            # Set start_date to midnight
+            end_date = end_date.replace(hour = 23, minute = 59, second = 59, microsecond = 0)
+        else:
+            end_date = datetime.combine(end_date, time.max)
 
         td = end_date - start_date
 
-        # Round up
-        if td.seconds > 0:
-            return td.days + 1
-
-        return td.days
+        return td.days + 1
 
     @staticmethod
     def date_range(start_date, end_date):

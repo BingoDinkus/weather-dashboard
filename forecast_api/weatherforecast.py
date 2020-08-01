@@ -129,9 +129,13 @@ class WeatherForecast(ABC):
             prop = item['properties']
             effective_start_raw = prop['effective']
             effective_start = datetime.strptime(effective_start_raw, '%Y-%m-%dT%H:%M:%S%z')
+            # NWS returns a timezone aware datetime, already in local time
+            # Strip out the time zone so that comparisons don't break
+            effective_start = effective_start.replace(tzinfo=None)
 
             effective_end_raw = prop['ends']
             effective_end = datetime.strptime(effective_end_raw, '%Y-%m-%dT%H:%M:%S%z')
+            effective_end = effective_end.replace(tzinfo=None)
 
             new_alert = WeatherAlert(
                 prop['event']                   # title

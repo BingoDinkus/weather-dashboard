@@ -23,7 +23,7 @@ import time
 import os
 
 # Consts
-DEBUG = True
+DEBUG = False
 
 DAILY_DESCRIP_MAX_CHARS = 13
 DAILY_DESCRIP_MAX_ROWS = 3
@@ -52,7 +52,6 @@ logging_config_path = Path('logging_config.ini')
 fileConfig(logging_config_path, disable_existing_loggers=False)
 log = logging.getLogger()
 
-
 TOP = dh.VerticalAlignment.TOP
 MIDDLE = dh.VerticalAlignment.MIDDLE
 BOTTOM = dh.VerticalAlignment.BOTTOM
@@ -78,7 +77,7 @@ def main():
     # )
 
     # Create DarkSky weather object
-    forecast = f.DarkSkyIO(
+    forecast = f.DarkSky(
         api_key= app_config['DarkSky']['api_key']
         , unit_type= f.UnitType.IMPERIAL
         , lat_long= app_config['Global']['lat_long']
@@ -558,6 +557,7 @@ def draw_alerts(img, canvas, alert, assests_path, fonts):
         max_alert_width = 280
 
     # Text
+    log.debug(alert.effective_start)
     if datetime.now() < alert.effective_start:
         preposition = 'beginning at'
         time = alert.effective_start

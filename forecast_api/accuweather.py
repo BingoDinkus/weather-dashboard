@@ -33,6 +33,10 @@ class AccuWeather(WeatherForecast):
         self.has_nighttime_forecasts = True
         self.api_calls_remaining = self._MAX_API_CALLS
 
+        # refresh_tolerance_mins allows a refresh to occur if the
+        # refresh is coming up in the near future
+        self.refresh_tolerance_mins = 10
+
         self._weather_icon_map = {
             1: '\uf00d'     # Sunny
             , 2: '\uf00c'   # Mostly Sunny
@@ -87,7 +91,7 @@ class AccuWeather(WeatherForecast):
         '''
             Makes an API call to the AccuWeather service
         '''
-        log.debug('Entering _make_request()')
+        log.debug(f'Entering _make_request() for endpoint {end_point}')
 
         url = f'{self._base_url}/{end_point}'
 
@@ -371,6 +375,33 @@ class AccuWeather(WeatherForecast):
         log.debug('Exiting _get_daily_forecast()')
         return forecast_updated
 
+    def _get_needed_refresh_methods(self):
+        '''
+            Returns a list of all methods that need to be called to refresh object
+            Method is included if it's within refresh_tolerance_mins
+        '''
+        log.debug('Entering _get_needed_refresh_methods()')
+
+        update_methods_to_invoke = []
+
+        adjusted_time = datetime.now() + timedelta(minutes= self.refresh_tolerance_mins)
+
+        if adjusted_time > self.current_conditions.next_refresh:
+            update_methods_to_invoke.append(self._get_current_conditions)
+
+        if adjusted_time > self.hourly_forecasts.next_refresh:
+            update_methods_to_invoke.append(self._get_hourly_forecast)
+
+        if adjusted_time > self.daily_forecasts.next_refresh:
+            update_methods_to_invoke.append(self._get_daily_forecast)
+
+        if adjusted_time > self.alerts.next_refresh:
+            update_methods_to_invoke.append(self._get_alerts)
+
+        log.debug('Exiting _get_needed_refresh_methods()')
+
+        return update_methods_to_invoke
+
     def refresh(self):
         '''
             Handles logic for determining if forecast needs to be refreshed
@@ -382,17 +413,12 @@ class AccuWeather(WeatherForecast):
 
         has_changed = False
 
-        if datetime.now() > self.current_conditions.next_refresh:
-            has_changed = self._get_current_conditions()
+        update_methods_to_invoke = self._get_needed_refresh_methods()
 
-        if datetime.now() > self.hourly_forecasts.next_refresh:
-            has_changed = self._get_hourly_forecast() or has_changed
+        log.debug(f'update_methods_to_invoke has {len(update_methods_to_invoke)} items')
+        for method in update_methods_to_invoke:
+            has_changed_new = method()
+            has_changed = has_changed or has_changed_new
 
-        if datetime.now() > self.daily_forecasts.next_refresh:
-            has_changed = self._get_daily_forecast() or has_changed
-
-        if datetime.now() > self.alerts.next_refresh:
-            has_changed = self._get_alerts() or has_changed
-
-        log.debug('Exiting refresh()')
+        log.debug(f'Exiting refresh() with status {has_changed}')
         return has_changed

@@ -139,6 +139,10 @@ class GoogleCalendar(CalendarAPI):
 
                     start_date = datetime.strptime(start_date_raw, '%Y-%m-%d')
                     end_date = datetime.strptime(end_date_raw, '%Y-%m-%d')
+
+                    # For all day events, Google returns the day after
+                    # Subtract a day to correct
+                    end_date -= timedelta(days=1)
                     all_day_event = True
                 else:
                     start_date_raw = item['start'].get('dateTime')

@@ -17,7 +17,7 @@ import requests
 
 log = logging.getLogger(__name__)
 
-class DarkSkyIO(WeatherForecast):
+class DarkSky(WeatherForecast):
     def __init__(self, api_key, unit_type, lat_long):
         self._MAX_API_CALLS = 1000 # Service offers 1,000 per day for free
 
@@ -165,6 +165,7 @@ class DarkSkyIO(WeatherForecast):
             forecast_updated = False
         else:
             forecast_updated = True
+            log.debug(f'Current conditions updated. Next refresh: {str(self.current_conditions.next_refresh)}')
 
         self.current_conditions = forecast_collection
 
@@ -197,6 +198,7 @@ class DarkSkyIO(WeatherForecast):
             forecast_updated = False
         else:
             forecast_updated = True
+            log.debug(f'Hourly forecast updated. Next refresh: {str(self.hourly_forecasts.next_refresh)}')
 
         self.hourly_forecasts = forecast_collection
 
@@ -228,6 +230,7 @@ class DarkSkyIO(WeatherForecast):
             forecast_updated = False
         else:
             forecast_updated = True
+            log.debug(f'Daily forecast updated. Next refresh: {str(self.daily_forecasts.next_refresh)}')
 
         self.daily_forecasts = forecast_collection
 
@@ -253,21 +256,21 @@ class DarkSkyIO(WeatherForecast):
                 effective_start= datetime.fromtimestamp(item['time'])
                 effective_end= datetime.fromtimestamp(item['expires'])
 
-                new_alert = WeatherAlert(
+                alerts.append(WeatherAlert(
                     title= item['title']
                     , regions= item['regions']
                     , severity= item['severity']
                     , description= item['description']
                     , effective_start= effective_start
                     , effective_end= effective_end
-                )
+                ))
 
-                alerts_collection = WeatherAlertsCollection(
-                    alerts= alerts
-                    # Set forecast expiration time to 30 minutes from now
-                    , next_refresh= datetime.now()
-                                    + timedelta(minutes=refresh_interval_minutes)
-                )
+            alerts_collection = WeatherAlertsCollection(
+                alerts= alerts
+                # Set forecast expiration time to 30 minutes from now
+                , next_refresh= datetime.now()
+                                + timedelta(minutes=refresh_interval_minutes)
+            )
 
         # If response matches existing data, indicate that the alerts weren't updated
         # Always update the object so next_refresh is accurate
@@ -277,6 +280,7 @@ class DarkSkyIO(WeatherForecast):
             alerts_updated = True
 
         self.alerts = alerts_collection
+        log.debug(f'Alerts updated. Next refresh: {str(self.alerts.next_refresh)}')
 
         log.debug('Exiting _parse_alerts()')
         return alerts_updated
