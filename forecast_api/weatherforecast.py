@@ -101,7 +101,26 @@ class WeatherForecast(ABC):
         ''' To be implemented by derived class '''
         pass
 
+    def _log_response_details(self, response):
+        log.debug('Response Headers:')
+        for header, val in response.headers.items():
+            log.debug(f'\t{header:35s}{val}')
+
+        json_response = None
+        try:
+            json_response = response.json()
+        except:
+            log.exception('Failed to get response JSON')
+
+        if json_response:
+            log.debug(f'Response JSON:')
+            log.debug(f'\t{json_response}')
+
     def _get_alerts(self):
+        log.debug('Entering _get_alerts()')
+
+        alerts_updated = False
+
         # Make request to NWS Alerts endpoint
         url = 'https://api.weather.gov/alerts/active'
 
@@ -115,49 +134,66 @@ class WeatherForecast(ABC):
             , 'status': 'actual'
         }
 
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        j = response.json()
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+        except Exception as err: #requests.exceptions.HTTPError as err:
+            log.exception(f'Alerts request failed.')
 
-        # DEBUG - read json from file instead of api request
-        # with open('Sample Responses/NWS/alerts.json') as json_file:
-        #     j = json.load(json_file)
+            self._log_response_details(response)
+
+            new_refresh = datetime.now() + timedelta(minutes=30)
+            log.error(f'Weather.gov Alert request failed. Setting next refresh for {new_refresh}.')
+            self.alerts.next_refresh = new_refresh
+
+            return alerts_updated
+
+        j = response.json()
 
         # Parse response, creating WeatherAlertsCollection object
         alerts = []
-        for item in j.get('features', []):
-            prop = item['properties']
-            effective_start_raw = prop['effective']
-            effective_start = datetime.strptime(effective_start_raw, '%Y-%m-%dT%H:%M:%S%z')
-            # NWS returns a timezone aware datetime, already in local time
-            # Strip out the time zone so that comparisons don't break
-            effective_start = effective_start.replace(tzinfo=None)
+        try:
+            for item in j.get('features', []):
+                prop = item['properties']
+                effective_start_raw = prop['effective']
+                effective_start = datetime.strptime(effective_start_raw, '%Y-%m-%dT%H:%M:%S%z')
+                # NWS returns a timezone aware datetime, already in local time
+                # Strip out the time zone so that comparisons don't break
+                effective_start = effective_start.replace(tzinfo=None)
 
-            effective_end_raw = prop['ends']
-            effective_end = datetime.strptime(effective_end_raw, '%Y-%m-%dT%H:%M:%S%z')
-            effective_end = effective_end.replace(tzinfo=None)
+                effective_end_raw = prop['ends']
+                effective_end = datetime.strptime(effective_end_raw, '%Y-%m-%dT%H:%M:%S%z')
+                effective_end = effective_end.replace(tzinfo=None)
 
-            new_alert = WeatherAlert(
-                prop['event']                   # title
-                , prop['areaDesc'].split(';')   # regions
-                , prop['severity']              # severity
-                , prop['description']           # description
-                , effective_start               # effective_start
-                , effective_end                 # effective_end
-            )
+                new_alert = WeatherAlert(
+                    prop['event']                   # title
+                    , prop['areaDesc'].split(';')   # regions
+                    , prop['severity']              # severity
+                    , prop['description']           # description
+                    , effective_start               # effective_start
+                    , effective_end                 # effective_end
+                )
 
-            alerts.append(new_alert)
+                alerts.append(new_alert)
+        except Exception as err:
+            log.exception('Malformed alerts response.')
+
+            self._log_response_details(response)
+
+            new_refresh = datetime.now() + timedelta(minutes=30)
+            log.error(f'Failed to parse Weather.gov alerts. Setting next refresh for {new_refresh}.')
+            self.alerts.next_refresh = new_refresh
+
+            return alerts_updated
 
         alerts_collection = WeatherAlertsCollection(
             alerts= alerts
             , next_refresh= datetime.now() + timedelta(minutes=30)
         )
 
-        # If response matches existing data, indicate that the alerts weren't updated
+        # If response does not match existing data, indicate that the alerts were updated
         # Always update the object so next_refresh is accurate
-        if self.alerts == alerts_collection:
-            alerts_updated = False
-        else:
+        if self.alerts != alerts_collection:
             alerts_updated = True
 
         self.alerts = alerts_collection

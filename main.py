@@ -10,7 +10,7 @@ __author__ = 'Eric J. Harlan'
 __license__ = "GPLv3"
 
 import configparser
-from datetime import datetime
+from datetime import datetime, timedelta
 import drawinghelpers as dh
 import logging
 from logging.config import fileConfig
@@ -68,29 +68,39 @@ def main():
     app_config = configparser.ConfigParser()
     app_config.read(app_config_path)
 
-    # Create AccuWeather object
-    # forecast = f.AccuWeather(
-    #     api_key= app_config['AccuWeather']['api_key']
-    #     , unit_type= f.UnitType.IMPERIAL
-    #     , lat_long= app_config['Global']['lat_long']
-    #     , nws_user_agent= app_config['NWS']['user_agent']
-    # )
+    # Fill quiet_hours set from config
+    quiet_hours_raw = app_config['Global'].get('quiet_hours')
+    quiet_hours = set()
 
-    # Create DarkSky weather object
-    forecast = f.DarkSky(
-        api_key= app_config['DarkSky']['api_key']
+    # If quiet_hours is in config file, split on comma
+    # and add each item to the quiet_hours set
+    if quiet_hours_raw:
+        for item in quiet_hours_raw.split(','):
+            quiet_hours.add(int(item))
+
+    # Create AccuWeather object
+    forecast = f.AccuWeather(
+        api_key= app_config['AccuWeather']['api_key']
         , unit_type= f.UnitType.IMPERIAL
         , lat_long= app_config['Global']['lat_long']
+        , nws_user_agent= app_config['NWS']['user_agent']
     )
+
+    # Create DarkSky weather object
+    # forecast = f.DarkSky(
+    #     api_key= app_config['DarkSky']['api_key']
+    #     , unit_type= f.UnitType.IMPERIAL
+    #     , lat_long= app_config['Global']['lat_long']
+    # )
 
     # Create Google Calendar object
     calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR)
 
-    run_application(forecast, calendar)
+    run_application(forecast, calendar, quiet_hours)
 
     log.debug('Exiting application')
 
-def run_application(forecast, calendar):
+def run_application(forecast, calendar, quiet_hours):
     log.debug('Entering run_application()')
 
     # Create pathlib path to assets
@@ -132,72 +142,87 @@ def run_application(forecast, calendar):
         }
     }
 
+    # Initialize
+    next_refresh = datetime.min
+
     # Loop continuously, for app life-cycle
     while True:
         try:
-            # Invoke refresh method, store result to push screen refresh if needed
-            screen_update_needed_forecast = forecast.refresh()
-            log.debug(f'Calendar refresh exited with status: {screen_update_needed_forecast}')
-            screen_update_needed_calendar = calendar.refresh()
-            log.debug(f'Calendar refresh exited with status: {screen_update_needed_calendar}')
+            # Check to see if the current hour is a quiet hour
+            if datetime.now().hour in quiet_hours:
+                log.info(f'The current hour ({datetime.now().hour}:00) is a quiet hour. Sleeping for an hour.')
 
-            screen_update_needed = screen_update_needed_forecast or screen_update_needed_calendar
+                # If next_refresh is initial value,
+                # set it to the current time
+                if next_refresh == datetime.min:
+                    next_refresh = datetime.now()
 
-            # Don't use calendar for next_refresh, just forecast
-            next_refresh = forecast.get_next_refresh()
-            log.debug(f'Next refresh: {next_refresh}')
-
-            if forecast.api_calls_remaining == 0:
-                log.critical(f'All forecast API calls have been exhausted.')
-                screen_update_needed = False
-
-            if screen_update_needed:
-                daily_forecasts = forecast.get_daytime_forecasts()
-
-                # Initialize image and canvas
-                # If it's after 6 pm, display tonight or tomorrow,
-                # depending on service's offerings
-                if datetime.now().hour >= 18:
-                    if forecast.has_nighttime_forecasts:
-                        img = Image.open(str((assests_path / 'images/background_tonight.bmp').absolute()))
-                        top_right_panel_forecast = forecast.get_nighttime_forecasts()[0]
-                        daily_forecasts = daily_forecasts[1:]
-                    else:
-                        img = Image.open(str((assests_path / 'images/background_tomorrow.bmp').absolute()))
-                        top_right_panel_forecast = daily_forecasts[1]
-                        daily_forecasts = daily_forecasts[2:]
-                else:
-                    img = Image.open(str((assests_path / 'images/background_today.bmp').absolute()))
-                    top_right_panel_forecast = daily_forecasts[0]
-                    daily_forecasts = daily_forecasts[1:]
-                canvas = ImageDraw.Draw(img)
-
-                draw_now_panel(canvas, fonts, forecast.current_conditions.forecasts[0])
-                draw_top_right_panel(canvas, fonts, top_right_panel_forecast)
-                draw_hourly_panel(canvas, fonts, forecast.hourly_forecasts.forecasts)
-                draw_daily_panel(canvas, fonts, daily_forecasts)
-                draw_footer(canvas, fonts, forecast.weather_service_display_name)
-                if len(forecast.alerts.alerts) > 0:
-                    draw_alerts(img, canvas, forecast.alerts.alerts[0], assests_path, fonts)
-                draw_upcoming_events(canvas, fonts, calendar)
-
-                if DEBUG:
-                    log.info('Pushing image to dashboard.bmp')
-                    img.save('dashboard.bmp')
-                else:
-                    log.info('Initializing screen...')
-                    epd = epd7in5.EPD()
-                    epd.init()
-
-                    log.info('Updating screen...')
-                    epd.display(epd.getbuffer(img))
-                    time.sleep(2)
-                    epd.sleep()
+                next_refresh = next_refresh + timedelta(hours= 1)
             else:
-                log.info('Screen update not needed')
+                # Invoke refresh method, store result to push screen refresh if needed
+                screen_update_needed_forecast = forecast.refresh()
+                log.debug(f'Calendar refresh exited with status: {screen_update_needed_forecast}')
+                screen_update_needed_calendar = calendar.refresh()
+                log.debug(f'Calendar refresh exited with status: {screen_update_needed_calendar}')
+
+                screen_update_needed = screen_update_needed_forecast or screen_update_needed_calendar
+
+                # Don't use calendar for next_refresh, just forecast
+                next_refresh = forecast.get_next_refresh()
+                log.debug(f'Next refresh: {next_refresh}')
+
+                if forecast.api_calls_remaining < 1:
+                    log.critical(f'All forecast API calls have been exhausted.')
+                    screen_update_needed = False
+
+                if screen_update_needed:
+                    daily_forecasts = forecast.get_daytime_forecasts()
+
+                    # Initialize image and canvas
+                    # If it's after 6 pm, display tonight or tomorrow,
+                    # depending on service's offerings
+                    if datetime.now().hour >= 18:
+                        if forecast.has_nighttime_forecasts:
+                            img = Image.open(str((assests_path / 'images/background_tonight.bmp').absolute()))
+                            top_right_panel_forecast = forecast.get_nighttime_forecasts()[0]
+                            daily_forecasts = daily_forecasts[1:]
+                        else:
+                            img = Image.open(str((assests_path / 'images/background_tomorrow.bmp').absolute()))
+                            top_right_panel_forecast = daily_forecasts[1]
+                            daily_forecasts = daily_forecasts[2:]
+                    else:
+                        img = Image.open(str((assests_path / 'images/background_today.bmp').absolute()))
+                        top_right_panel_forecast = daily_forecasts[0]
+                        daily_forecasts = daily_forecasts[1:]
+                    canvas = ImageDraw.Draw(img)
+
+                    draw_now_panel(canvas, fonts, forecast.current_conditions.forecasts[0])
+                    draw_top_right_panel(canvas, fonts, top_right_panel_forecast)
+                    draw_hourly_panel(canvas, fonts, forecast.hourly_forecasts.forecasts)
+                    draw_daily_panel(canvas, fonts, daily_forecasts)
+                    draw_footer(canvas, fonts, forecast.weather_service_display_name)
+                    if len(forecast.alerts.alerts) > 0:
+                        draw_alerts(img, canvas, forecast.alerts.alerts[0], assests_path, fonts)
+                    draw_upcoming_events(canvas, fonts, calendar)
+
+                    if DEBUG:
+                        log.info('Pushing image to dashboard.bmp')
+                        img.save('dashboard.bmp')
+                    else:
+                        log.info('Initializing screen...')
+                        epd = epd7in5.EPD()
+                        epd.init()
+
+                        log.info('Updating screen...')
+                        epd.display(epd.getbuffer(img))
+                        time.sleep(2)
+                        epd.sleep()
+                else:
+                    log.info('Screen update not needed')
+
+                next_refresh = forecast.get_next_refresh()
 
             # Determine how long to sleep
-            next_refresh = forecast.get_next_refresh()
             sleep_needed_seconds = (next_refresh - datetime.now()).total_seconds()
             if sleep_needed_seconds < 0:
                 log.warning(f'Sleep needed less than zero. Setting value to 0.')
@@ -557,7 +582,7 @@ def draw_alerts(img, canvas, alert, assests_path, fonts):
         max_alert_width = 280
 
     # Text
-    log.debug(alert.effective_start)
+    log.debug(f'Alert timeframe: {str(alert.effective_start)} - {str(alert.effective_end)}')
     if datetime.now() < alert.effective_start:
         preposition = 'beginning at'
         time = alert.effective_start
@@ -742,122 +767,6 @@ def draw_upcoming_events(canvas, fonts, calendar):
             line_coords = (x_offset, y_offset, x_offset + 178, y_offset)
 
     log.debug('Exiting draw_upcoming_events()')
-
-# def draw_upcoming_events(canvas, fonts, calendar):
-#     log.debug('Entering draw_upcoming_events()')
-
-#     MAX_Y = 356
-
-#     cell_1_1_start_x = 0
-#     cell_1_1_start_y = 0
-#     cell_1_1_end_x = 30
-#     cell_1_1_end_y = 14
-
-#     cell_1_2_start_x = 35
-#     cell_1_2_start_y = 0
-#     cell_1_2_end_x = 178
-#     cell_1_2_end_y = 20
-
-#     cell_2_1_start_x = 0
-#     cell_2_1_start_y = 16
-#     cell_2_1_end_x = 30
-#     cell_2_1_end_y = 44
-
-#     cell_2_2_start_x = 35
-#     cell_2_2_start_y = 22
-#     cell_2_2_end_x = 178
-#     cell_2_2_end_y = 44
-
-#     # Loop through calendar events until an event won't in allocated space
-#     x_offset = 453
-#     y_offset = 27
-
-#     # Loop through keys (dates)
-#     while True:
-#         line_coords = None
-#         for key, val in calendar:
-#             # Track whether the date has been drawn
-#             # So that we only draw it when we know there's
-#             # enough space for another event
-#             date_drawn = False
-
-#             # Output day of week and day
-#             dow = dh.Text(canvas, key.strftime('%a'), fonts['Roboto']['Small'])
-#             day = dh.Text(canvas, str(key.day), fonts['RobotoBold']['Medium'])
-
-#             # Coordinates
-#             dow_start = (cell_1_1_start_x + x_offset, cell_1_1_start_y + y_offset)
-#             dow_end = (cell_1_1_end_x + x_offset, cell_1_1_end_y + y_offset)
-#             day_start = (cell_2_1_start_x + x_offset, cell_2_1_start_y + y_offset)
-#             day_end = (cell_2_1_end_x + x_offset, cell_2_1_end_y + y_offset)
-
-#             for item in val:
-#                 title = []
-#                 # Ensure event title fits width and doesn't span too many rows
-#                 title_str = item.event_name
-#                 while True:
-#                     while len(textwrap.wrap(title_str, CALENDAR_TITLE_MAX_CHARS)) > CALENDAR_TITLE_MAX_ROWS:
-#                         title_str = title_str[:-2] + '…'
-
-#                     for line in textwrap.wrap(title_str, CALENDAR_TITLE_MAX_CHARS):
-#                         title.append(dh.Text(canvas, line, fonts['Roboto']['Small']))
-
-#                         # If it fits, break the loop
-#                         if title[:-1].width <= cell_1_2_end_x - cell_1_2_start_x:
-#                             break
-
-#                     title_str = title_str[:-2] + '…'
-
-#                 # Create objects for time frame
-#                 if item.all_day_event:
-#                     time_frame_str = 'All day'
-#                 elif item.end_date is None:
-#                     time_frame_str = ('Starting at '
-#                                 f'{item.start_date.strftime("%-I:%M")} '
-#                                 f'{item.start_date.strftime("%p")[:-1].lower()}')
-#                 elif item.start_date is None:
-#                     time_frame_str = ('Until '
-#                                 f'{item.end_date.strftime("%-I:%M")} '
-#                                 f'{item.end_date.strftime("%p")[:-1].lower()}')
-#                 else:
-#                     time_frame_str = (f'{item.start_date.strftime("%-I:%M")} '
-#                                 f'{item.start_date.strftime("%p")[:-1].lower()} - '
-#                                 f'{item.end_date.strftime("%-I:%M")} '
-#                                 f'{item.end_date.strftime("%p")[:-1].lower()}')
-
-#                 time_frame = dh.Text(canvas, time_frame_str, fonts['Roboto']['Small'])
-
-#                 title_start = (cell_1_2_start_x + x_offset, cell_1_2_start_y + y_offset)
-#                 title_end = (cell_1_2_end_x + x_offset, cell_1_2_end_y + y_offset)
-
-
-#                 time_frame_start = (cell_2_2_start_x + x_offset, cell_2_2_start_y + y_offset)
-#                 time_frame_end = (cell_2_2_end_x + x_offset, cell_2_2_end_y + y_offset)
-
-#                 if time_frame_end[1] > MAX_Y:
-#                     # If we don't have room to write everything, exit
-#                     return
-
-#                 if not date_drawn:
-#                     if line_coords:
-#                         canvas.line(line_coords, width=1)
-#                     dow.write(dow_start, dow_end, CENTER, TOP)
-#                     day.write(day_start, day_end, CENTER, TOP)
-#                     date_drawn = True
-
-#                 title.write(title_start, title_end, LEFT, BOTTOM)
-#                 time_frame.write(time_frame_start, time_frame_end, LEFT, TOP)
-#                 y_offset = y_offset + cell_2_1_end_y + 2
-
-#             # If there's not room for another event, exit function
-#             if y_offset + cell_2_1_end_y > MAX_Y:
-#                 return
-
-#             # Draw line separating dates
-#             line_coords = (x_offset, y_offset, x_offset + 178, y_offset)
-#             y_offset = y_offset + 2
-
-#     log.debug('Exiting draw_upcoming_events()')
 
 if __name__ == '__main__':
     main()

@@ -74,14 +74,23 @@ class DarkSky(WeatherForecast):
             , 'exclude': 'minutely, flags'
         }
 
-        response = requests.get(url, headers=self._headers, params=params)
-        response.raise_for_status()
+        try:
+            response = requests.get(url, headers=self._headers, params=params)
+            response.raise_for_status()
+        except Exception as err: #requests.exceptions.HTTPError as err:
+            log.exception(f'Request failed.')
 
-        # log.debug('Response Headers:')
-        # for header, val in response.headers.items():
-        #     log.debug(f'{header:35s}{val}')
+            self._log_response_details(response)
 
-        # log.debug(f'Response: {response.json()}')
+            new_refresh = datetime.now() + timedelta(hours=1)
+            log.error(f'DarkSky request failed. Setting next refresh for {new_refresh}.')
+            self.current_conditions.next_refresh = new_refresh
+            self.hourly_forecasts.next_refresh = new_refresh
+            self.daily_forecasts.next_refresh = new_refresh
+            self.alerts.next_refresh = new_refresh
+
+            # Return False indicating nothing was updated
+            return False
 
         # Parse calls used from header, use to set calls remaining
         api_calls_used = int(response.headers['X-Forecast-API-Calls'])

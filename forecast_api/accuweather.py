@@ -98,20 +98,27 @@ class AccuWeather(WeatherForecast):
         # Add API Key to params
         params['apikey'] = self.api_key
 
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        if self._location_key is None:
+            lookup_success = self._get_location_key
+        else:
+            lookup_success = True
 
-        # log.debug('Response Headers:')
-        # for header, val in response.headers.items():
-        #     log.debug(f'{header:35s}{val}')
+        if not lookup_success:
+            log.error('Invalid location key. Request will not be made.')
+        else:
+            try:
+                response = requests.get(url, headers=headers, params=params)
+                response.raise_for_status()
+            except Exception as err: #requests.exceptions.HTTPError as err:
+                log.exception(f'Request failed.')
 
-        # log.debug(f'Response: {response.json()}')
+                self._log_response_details(response)
 
-        self.api_calls_remaining = int(response.headers['RateLimit-Remaining'])
-        log.info(f'{self.api_calls_remaining} AccuWeather API calls remaining')
+            self.api_calls_remaining = int(response.headers.get('RateLimit-Remaining', -1))
+            log.info(f'{self.api_calls_remaining} AccuWeather API calls remaining')
 
         log.debug('Exiting _make_request()')
-        return response.json()
+        return response.json(), response.status_code
 
     def _get_location_key(self):
         '''
@@ -124,22 +131,35 @@ class AccuWeather(WeatherForecast):
         log.debug('Entering _get_location_key()')
 
         end_point = 'locations/v1/cities/geoposition/search'
+        lookup_success = False
 
         if self._location_key is None:
             params = {'q': self.lat_long}
-            response = self._make_request(end_point, self._headers, params)
+            response, response_status_code = self._make_request(end_point, self._headers, params)
 
-            if 'Key' in response:
-                self._location_key = response['Key']
-                self.city = response['LocalizedName']
-                self.state = response['AdministrativeArea']['LocalizedName']
-                self.state_abbrev = response['AdministrativeArea']['ID']
-                self.country = response['Country']['LocalizedName']
-                self.country_abbrev = response['Country']['ID']
+            if response_status_code != requests.codes.ok: # pylint: disable=no-member
+                new_refresh = datetime.now() + timedelta(hours=1)
+                log.error(f'Location Key request failed. Setting next refresh for {new_refresh}.')
+
+                self.current_conditions.next_refresh = new_refresh
+                self.hourly_forecasts.next_refresh = new_refresh
+                self.daily_forecasts.next_refresh = new_refresh
+                self.alerts.next_refresh = new_refresh
             else:
-                raise RuntimeError('Unable to find Location Key in response.')
+                if 'Key' in response:
+                    self._location_key = response.get('Key')
+                    self.city = response.get('LocalizedName')
+                    self.state = response.get('AdministrativeArea').get('LocalizedName')
+                    self.state_abbrev = response.get('AdministrativeArea').get('ID')
+                    self.country = response.get('Country').get('LocalizedName')
+                    self.country_abbrev = response.get('Country').get('ID')
 
-        log.debug('Exiting _get_location_key()')
+                    lookup_success = True
+                else:
+                    raise RuntimeError('Unable to find Location Key in response.')
+
+        log.debug(f'Exiting _get_location_key() with status {lookup_success}')
+        return lookup_success
 
     def _get_current_conditions(self):
         '''
@@ -153,46 +173,52 @@ class AccuWeather(WeatherForecast):
         log.debug('Entering _get_current_conditions()')
 
         end_point = f'currentconditions/v1/{self._location_key}'
+        forecast_updated = False
 
         # Get full details so that payload includes Real Feel
         params = {'details': 'true'}
 
         # Response is an list, grab the first (and only) item
-        response = self._make_request(end_point, self._headers, params)[0]
+        response, response_status_code = self._make_request(end_point, self._headers, params)
 
-        # Create a new ForecastData object to store api response data
-        forecast_date = response['LocalObservationDateTime']
-
-        precipitation_type = response.get('PrecipitationType', None)
-        precipitation_icon = self._precip_icon_map.get(str(precipitation_type).lower(), '\uf084')
-
-        new_forecast = ForecastData(
-            forecast_datetime= datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
-            , current_temperature= response['Temperature'][str(self.unit_type.name).title()]['Value']
-            , feels_like_temperature= response['RealFeelTemperature'][str(self.unit_type.name).title()]['Value']
-            , weather_icon_raw= response['WeatherIcon']
-            , weather_icon= self._weather_icon_map[response['WeatherIcon']]
-            , weather_text= response['WeatherText']
-            , relative_humidity= response['RelativeHumidity']
-
-            , precipitation_type= precipitation_type
-            , precipitation_icon= precipitation_icon
-        )
-
-        forecast_collection = ForecastDataCollection(
-            forecasts=[new_forecast]
-            # Set forecast refresh time to 1 hour from now
-            , next_refresh= datetime.now() + timedelta(hours=1)
-        )
-
-        # If response matches existing data, indicate that the forecast wasn't updated
-        # Always update the object so next_refresh is accurate
-        if self.current_conditions == forecast_collection:
-            forecast_updated = False
+        if response_status_code != requests.codes.ok: # pylint: disable=no-member
+            new_refresh = datetime.now() + timedelta(hours=1)
+            log.error(f'Current Conditions request failed. Setting next refresh for {new_refresh}.')
+            self.current_conditions.next_refresh = new_refresh
         else:
-            forecast_updated = True
+            response = response[0]
 
-        self.current_conditions = forecast_collection
+            # Create a new ForecastData object to store api response data
+            forecast_date = response['LocalObservationDateTime']
+
+            precipitation_type = response.get('PrecipitationType', None)
+            precipitation_icon = self._precip_icon_map.get(str(precipitation_type).lower(), '\uf084')
+
+            new_forecast = ForecastData(
+                forecast_datetime= datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
+                , current_temperature= response['Temperature'][str(self.unit_type.name).title()]['Value']
+                , feels_like_temperature= response['RealFeelTemperature'][str(self.unit_type.name).title()]['Value']
+                , weather_icon_raw= response['WeatherIcon']
+                , weather_icon= self._weather_icon_map[response['WeatherIcon']]
+                , weather_text= response['WeatherText']
+                , relative_humidity= response['RelativeHumidity']
+
+                , precipitation_type= precipitation_type
+                , precipitation_icon= precipitation_icon
+            )
+
+            forecast_collection = ForecastDataCollection(
+                forecasts=[new_forecast]
+                # Set forecast refresh time to 1 hour from now
+                , next_refresh= datetime.now() + timedelta(hours=1)
+            )
+
+            # If response doesn't match existing data, indicate that the forecast was updated
+            # Always update the object so next_refresh is accurate
+            if self.current_conditions != forecast_collection:
+                forecast_updated = True
+
+            self.current_conditions = forecast_collection
 
         log.debug('Exiting _get_current_conditions()')
         return forecast_updated
@@ -209,6 +235,7 @@ class AccuWeather(WeatherForecast):
         log.debug('Entering _get_hourly_forecast()')
 
         end_point = f'forecasts/v1/hourly/12hour/{self._location_key}'
+        forecast_updated = False
 
         # Get full details so that payload includes Real Feel
         params = {'details': 'true'}
@@ -218,47 +245,50 @@ class AccuWeather(WeatherForecast):
         else:
             params['metric'] = 'false'
 
-        response = self._make_request(end_point, self._headers, params)
+        response, response_status_code = self._make_request(end_point, self._headers, params)
 
-        # Loop through all forecast items, adding them to a list
-        new_forecasts = []
-        log.debug(f'Parsing {len(response)} elements...')
-        for item in response:
-            forecast_date = item['DateTime']
-            precipitation_type = item.get('PrecipitationType', None)
-            precipitation_icon = self._precip_icon_map.get(str(precipitation_type).lower(), '\uf084')
+        if response_status_code != requests.codes.ok: # pylint: disable=no-member
+            new_refresh = datetime.now() + timedelta(hours=1)
+            log.error(f'Hourly Forecast request failed. Setting next refresh for {new_refresh}.')
+            self.hourly_forecasts.next_refresh = new_refresh
+        else:
+            # Loop through all forecast items, adding them to a list
+            new_forecasts = []
+            log.debug(f'Parsing {len(response)} elements...')
+            for item in response:
+                forecast_date = item['DateTime']
+                precipitation_type = item.get('PrecipitationType', None)
+                precipitation_icon = self._precip_icon_map.get(str(precipitation_type).lower(), '\uf084')
 
-            new_item = ForecastData(
-                forecast_datetime= datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
-                , current_temperature= item['Temperature']['Value']
-                , feels_like_temperature= item['RealFeelTemperature']['Value']
-                , weather_icon_raw = item['WeatherIcon']
-                , weather_icon= self._weather_icon_map[item['WeatherIcon']]
-                , weather_text= item['IconPhrase']
-                , relative_humidity= item['RelativeHumidity']
+                new_item = ForecastData(
+                    forecast_datetime= datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
+                    , current_temperature= item['Temperature']['Value']
+                    , feels_like_temperature= item['RealFeelTemperature']['Value']
+                    , weather_icon_raw = item['WeatherIcon']
+                    , weather_icon= self._weather_icon_map[item['WeatherIcon']]
+                    , weather_text= item['IconPhrase']
+                    , relative_humidity= item['RelativeHumidity']
 
-                , precipitation_type= precipitation_type
-                , precipitation_icon= precipitation_icon
-                , precipitation_probability= item['PrecipitationProbability']
-                , precipitation_amount=item['TotalLiquid']['Value']
+                    , precipitation_type= precipitation_type
+                    , precipitation_icon= precipitation_icon
+                    , precipitation_probability= item['PrecipitationProbability']
+                    , precipitation_amount=item['TotalLiquid']['Value']
+                )
+
+                new_forecasts.append(new_item)
+
+            forecast_collection = ForecastDataCollection(
+                forecasts=new_forecasts
+                # Set forecast refresh time to 1 hour from now
+                , next_refresh= datetime.now() + timedelta(hours=1)
             )
 
-            new_forecasts.append(new_item)
+            # If response doesn't match existing data, indicate that the forecast was updated
+            # Always update the object so next_refresh is accurate
+            if self.current_conditions != forecast_collection:
+                forecast_updated = True
 
-        forecast_collection = ForecastDataCollection(
-            forecasts=new_forecasts
-            # Set forecast refresh time to 1 hour from now
-            , next_refresh= datetime.now() + timedelta(hours=1)
-        )
-
-        # If response matches existing data, indicate that the forecast wasn't updated
-        # Always update the object so next_refresh is accurate
-        if self.hourly_forecasts == forecast_collection:
-            forecast_updated = False
-        else:
-            forecast_updated = True
-
-        self.hourly_forecasts = forecast_collection
+            self.hourly_forecasts = forecast_collection
 
         log.debug('Exiting _get_hourly_forecast()')
         return forecast_updated
@@ -275,6 +305,7 @@ class AccuWeather(WeatherForecast):
         log.debug('Entering _get_daily_forecast()')
 
         end_point = f'forecasts/v1/daily/5day/{self._location_key}'
+        forecast_updated = False
 
         # Get full details so that payload includes Real Feel
         params = {'details': 'true'}
@@ -284,93 +315,96 @@ class AccuWeather(WeatherForecast):
         else:
             params['metric'] = 'false'
 
-        response = self._make_request(end_point, self._headers, params)
+        response, response_status_code = self._make_request(end_point, self._headers, params)
 
-        # Loop through all forecast items, adding them to a list
-        new_forecasts = []
+        if response_status_code != requests.codes.ok: # pylint: disable=no-member
+            new_refresh = datetime.now() + timedelta(hours=1)
+            log.error(f'Daily Forecast request failed. Setting next refresh for {new_refresh}.')
+            self.daily_forecasts.next_refresh = new_refresh
+        else:
+            # Loop through all forecast items, adding them to a list
+            new_forecasts = []
 
-        log.debug(f"Parsing {len(response['DailyForecasts'])} elements...")
-        for item in response['DailyForecasts']:
-            forecast_date = item['Date']
-            forecast_datetime = datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
+            log.debug(f"Parsing {len(response['DailyForecasts'])} elements...")
+            for item in response['DailyForecasts']:
+                forecast_date = item['Date']
+                forecast_datetime = datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
 
-            day_precipitation_type = item['Day'].get('PrecipitationType', None)
-            day_precipitation_icon = self._precip_icon_map.get(str(day_precipitation_type).lower(), '\uf084')
+                day_precipitation_type = item['Day'].get('PrecipitationType', None)
+                day_precipitation_icon = self._precip_icon_map.get(str(day_precipitation_type).lower(), '\uf084')
 
-            night_precipitation_type = item['Night'].get('PrecipitationType', None)
-            night_precipitation_icon = self._precip_icon_map.get(str(night_precipitation_type).lower(), '\uf084')
+                night_precipitation_type = item['Night'].get('PrecipitationType', None)
+                night_precipitation_icon = self._precip_icon_map.get(str(night_precipitation_type).lower(), '\uf084')
 
-            # Day
-            day = ForecastData(
-                forecast_datetime= forecast_datetime
-                , is_nighttime_forecast= False
-                , high_temperature= item['Temperature']['Maximum']['Value']
-                , low_temperature= item['Temperature']['Minimum']['Value']
-                , feels_like_high = item['RealFeelTemperature']['Maximum']['Value']
-                , feels_like_low = item['RealFeelTemperature']['Minimum']['Value']
+                # Day
+                day = ForecastData(
+                    forecast_datetime= forecast_datetime
+                    , is_nighttime_forecast= False
+                    , high_temperature= item['Temperature']['Maximum']['Value']
+                    , low_temperature= item['Temperature']['Minimum']['Value']
+                    , feels_like_high = item['RealFeelTemperature']['Maximum']['Value']
+                    , feels_like_low = item['RealFeelTemperature']['Minimum']['Value']
 
-                , precipitation_type= day_precipitation_type
-                , precipitation_icon= day_precipitation_icon
-                , precipitation_probability= item['Day']['PrecipitationProbability']
-                , precipitation_amount=item['Day']['TotalLiquid']['Value']
+                    , precipitation_type= day_precipitation_type
+                    , precipitation_icon= day_precipitation_icon
+                    , precipitation_probability= item['Day']['PrecipitationProbability']
+                    , precipitation_amount=item['Day']['TotalLiquid']['Value']
 
-                , weather_icon_raw = item['Day']['Icon']
-                , weather_icon= self._weather_icon_map[item['Day']['Icon']]
-                , weather_text= item['Day']['ShortPhrase']
+                    , weather_icon_raw = item['Day']['Icon']
+                    , weather_icon= self._weather_icon_map[item['Day']['Icon']]
+                    , weather_text= item['Day']['ShortPhrase']
 
-                , sunrise_time= datetime.strptime(item['Sun']['Rise'], '%Y-%m-%dT%H:%M:%S%z')
-                , sunset_time= datetime.strptime(item['Sun']['Set'], '%Y-%m-%dT%H:%M:%S%z')
+                    , sunrise_time= datetime.strptime(item['Sun']['Rise'], '%Y-%m-%dT%H:%M:%S%z')
+                    , sunset_time= datetime.strptime(item['Sun']['Set'], '%Y-%m-%dT%H:%M:%S%z')
+                )
+
+                # Night
+                night = ForecastData(
+                    forecast_datetime= forecast_datetime
+                    , is_nighttime_forecast= True
+                    , high_temperature= item['Temperature']['Maximum']['Value']
+                    , low_temperature= item['Temperature']['Minimum']['Value']
+                    , feels_like_high = item['RealFeelTemperature']['Maximum']['Value']
+                    , feels_like_low = item['RealFeelTemperature']['Minimum']['Value']
+
+                    , precipitation_type= night_precipitation_type
+                    , precipitation_icon= night_precipitation_icon
+                    , precipitation_probability= item['Night']['PrecipitationProbability']
+                    , precipitation_amount=item['Night']['TotalLiquid']['Value']
+
+                    , weather_icon_raw = item['Night']['Icon']
+                    , weather_icon= self._weather_icon_map[item['Night']['Icon']]
+                    , weather_text= item['Night']['ShortPhrase']
+
+                    , sunrise_time= datetime.strptime(item['Sun']['Rise'], '%Y-%m-%dT%H:%M:%S%z')
+                    , sunset_time= datetime.strptime(item['Sun']['Set'], '%Y-%m-%dT%H:%M:%S%z')
+                )
+
+                new_forecasts.append(day)
+                new_forecasts.append(night)
+
+            # Set next refresh to 6 am/pm, whichever comes first
+            if datetime.now().hour > 6 and datetime.now().hour < 18:
+                refresh_hour = 17
+            else:
+                refresh_hour = 5
+
+            next_refresh = datetime.combine(date.today(), time(refresh_hour, 0))
+            if next_refresh < datetime.now():
+                next_refresh += timedelta(days=1)
+
+            forecast_collection = ForecastDataCollection(
+                forecasts= new_forecasts
+                # Set forecast refresh time to 1 hour from now
+                , next_refresh= next_refresh
             )
 
-            # Night
-            night = ForecastData(
-                forecast_datetime= forecast_datetime
-                , is_nighttime_forecast= True
-                , high_temperature= item['Temperature']['Maximum']['Value']
-                , low_temperature= item['Temperature']['Minimum']['Value']
-                , feels_like_high = item['RealFeelTemperature']['Maximum']['Value']
-                , feels_like_low = item['RealFeelTemperature']['Minimum']['Value']
+            # If response doesn't match existing data, indicate that the forecast was updated
+            # Always update the object so next_refresh is accurate
+            if self.current_conditions != forecast_collection:
+                forecast_updated = True
 
-                , precipitation_type= night_precipitation_type
-                , precipitation_icon= night_precipitation_icon
-                , precipitation_probability= item['Night']['PrecipitationProbability']
-                , precipitation_amount=item['Night']['TotalLiquid']['Value']
-
-                , weather_icon_raw = item['Night']['Icon']
-                , weather_icon= self._weather_icon_map[item['Night']['Icon']]
-                , weather_text= item['Night']['ShortPhrase']
-
-                , sunrise_time= datetime.strptime(item['Sun']['Rise'], '%Y-%m-%dT%H:%M:%S%z')
-                , sunset_time= datetime.strptime(item['Sun']['Set'], '%Y-%m-%dT%H:%M:%S%z')
-            )
-
-            new_forecasts.append(day)
-            new_forecasts.append(night)
-
-        # Set next refresh to 6 am/pm, whichever comes first
-        if datetime.now().hour > 6 and datetime.now().hour < 18:
-            refresh_hour = 17
-        else:
-            refresh_hour = 5
-
-        next_refresh = datetime.combine(date.today(), time(refresh_hour, 0))
-        if next_refresh < datetime.now():
-            next_refresh += timedelta(days=1)
-
-        forecast_collection = ForecastDataCollection(
-            forecasts= new_forecasts
-            # Set forecast refresh time to 1 hour from now
-            , next_refresh= next_refresh
-        )
-
-        # If response matches existing data, indicate that the forecast wasn't updated
-        # Always update the object so next_refresh is accurate
-        if self.daily_forecasts == forecast_collection:
-            forecast_updated = False
-        else:
-            forecast_updated = True
-
-        self.daily_forecasts = forecast_collection
+            self.daily_forecasts = forecast_collection
 
         log.debug('Exiting _get_daily_forecast()')
         return forecast_updated
