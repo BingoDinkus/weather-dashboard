@@ -132,7 +132,7 @@ class GoogleCalendar(CalendarAPI):
         for item in gcalendar_items:
             # Exclude the "Happy birthday!" item
             # Especially since my birthday is also on a calendar shared with me
-            if item['summary'] != 'Happy birthday!':
+            if item.get('summary') and item.get('summary', '') != 'Happy birthday!':
                 if not item['start'].get('dateTime'):
                     start_date_raw = item['start'].get('date')
                     end_date_raw = item['end'].get('date')

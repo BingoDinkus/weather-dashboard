@@ -1,3 +1,6 @@
+# v1.04: Calendar Fix (2020-11-17)
+* Fixed crash caused by calendar event not having a summary
+
 # v1.03: Added Quiet Hours feature (2020-08-05)
 * New Quiet Hours feature supresses updates during specified hours
 * Fixed unhandled error when requests fail (for AccuWeather & DarkSky)
