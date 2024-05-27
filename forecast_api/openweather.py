@@ -22,7 +22,7 @@ class OpenWeather(WeatherForecast):
         self._MAX_API_CALLS = 1000 # Service offers 1,000 per day for free
 
         WeatherForecast.__init__(self
-                                , weather_service= WeatherServices.DARKSKY
+                                , weather_service= WeatherServices.OPENWEATHER
                                 , unit_type= unit_type
                                 , lat_long= lat_long
 
@@ -30,8 +30,10 @@ class OpenWeather(WeatherForecast):
                                 , lang= lang
                         )
         self.has_nighttime_forecasts = False
-        self._base_url = 'https://api.openweathermap.org/data/3.0/'
         self.api_calls_remaining = self._MAX_API_CALLS
+
+        self._base_url = 'https://api.openweathermap.org/data/3.0/'
+        self._timezone_offset = 0
 
         self._weather_icon_map = {
             # https://openweathermap.org/weather-conditions#Weather-Condition-Codes-2
@@ -159,7 +161,7 @@ class OpenWeather(WeatherForecast):
 
         try:
             # Attempt to get the dictonary for the specified icon (e.g. "10d")
-            icon_dict = weather_icon_map.get(icon_name)
+            icon_dict = self._weather_icon_map.get(icon_name)
 
             # If the icon is valid, a dictionary will be returned
             if isinstance(icon_dict, dict):
@@ -172,7 +174,7 @@ class OpenWeather(WeatherForecast):
         finally:
             # If we didn't manage to find a glyph, use the unknown glyph instead
             if not weather_icon:
-                weather_icon = weather_icon_map['unknown']
+                weather_icon = self._weather_icon_map['unknown']
 
         return weather_icon
 
@@ -196,15 +198,15 @@ class OpenWeather(WeatherForecast):
             units = 'metric'
 
         params = {
-            'lat': {lat},
-            'lon': {long},
-            'appid': {api_key},
+            'lat': {self.lat},
+            'lon': {self.long},
+            'appid': {self.api_key},
             'units': {units},
-            'lang': {lang}
+            'lang': {self.lang}
         }
 
         try:
-            response = requests.get(url, headers=self._headers, params=params)
+            response = requests.get(url, params=params)
             response.raise_for_status()
         except Exception as err: #requests.exceptions.HTTPError as err:
             log.exception(f'Request failed.')
@@ -222,15 +224,16 @@ class OpenWeather(WeatherForecast):
             return False
 
         # Parse calls used from header, use to set calls remaining
-        api_calls_used = int(response.headers['X-Forecast-API-Calls'])
-        self.api_calls_remaining = self._MAX_API_CALLS - api_calls_used
-        log.info(f'{self.api_calls_remaining} OpenWeather API calls remaining')
+        # api_calls_used = int(response.headers['X-Forecast-API-Calls'])
+        # self.api_calls_remaining = self._MAX_API_CALLS - api_calls_used
+        # log.info(f'{self.api_calls_remaining} OpenWeather API calls remaining')
 
         j = response.json()
-        current_refresh = self._parse_current_conditions(j['currently'])
-        hourly_refresh = self._parse_hourly_conditions(j['hourly']['data'])
-        daily_refresh = self._parse_daily_conditions(j['daily']['data'])
-        alerts_refresh = self._parse_alerts(j.get('alerts', None))
+        self._timezone_offset = j.get('timezone_offset', 0)
+
+        current_refresh = self._parse_current_conditions(j['current'])
+        hourly_refresh = self._parse_hourly_conditions(j['hourly'])
+        daily_refresh = self._parse_daily_conditions(j['daily'])
 
         log.debug('Exiting _make_request()')
         return current_refresh or hourly_refresh or daily_refresh or alerts_refresh
@@ -250,32 +253,88 @@ class OpenWeather(WeatherForecast):
             sunrise = datetime.fromtimestamp(forecast_json['sunrise'])
         if 'sunset' in forecast_json:
             sunset = datetime.fromtimestamp(forecast_json['sunset'])
-        if 'daily.pop' in forecast_json:
-            precipitation_probability = forecast_json['daily.pop'] * 100
+        if 'pop' in forecast_json:
+            precipitation_probability = forecast_json['pop'] * 100
 
-        precipitation_type = forecast_json.get('precipType', None)
-        precipitation_icon = self._precip_icon_map.get(str(precipitation_type).lower(), '\uf084')
+        # OpenWeather doesn't provide the overall precipitation type
+        # Use the Rain and Snow pop to determine which icon to display
+        # The object for rain/snow varies depending on the section
+        # Parse the value from the 1h element as needed
+        rain_mm = forecast_json.get('rain', 0)
+        if isinstance(rain_mm, dict):
+            rain_mm = rain_mm['1h']
+
+        snow_mm = forecast_json.get('snow', 0)
+        if isinstance(rain_mm, dict):
+            snow_mm = snow_mm['1h']
+
+        precipitation_accumulation = rain_mm + snow_mm
+
+        if rain_mm >= snow_mm:
+            precipitation_type = 'rain'
+        else:
+            precipitation_type = 'snow'
+
+        precipitation_icon = self._precip_icon_map.get(precipitation_type, '\uf084')
+
+        # For current and hourly, the API provides a single temp for "temp" and "feels_like"
+        # For daily, the API provides an object with temp and feels_like temps throughout the day
+        # If temp or feels_like is a json/dict, grab the "day" element as the value
+
+        # temp
+        temp_min = None
+        temp_max = None
+        temp = forecast_json['temp']
+        if isinstance(temp, dict):
+            temp_min = temp['min']
+            temp_max = temp['max']
+            temp = temp['day']
+
+        # feels_like
+        feels_like_min = None
+        feels_like_max = None
+        feels_like = forecast_json['feels_like']
+        if isinstance(feels_like, dict):
+            feels_like_list = [
+                                feels_like['day'],
+                                feels_like['night'],
+                                feels_like['eve'],
+                                feels_like['morn']
+                            ]
+            feels_like_min = min(feels_like_list)
+            feels_like_max = max(feels_like_list)
+            feels_like = feels_like['day']
+
+        # Current and Hourly do not have a summary
+        # Use the weather.description element instead, convert to title case
+        if 'summary' in forecast_json:
+            weather_text = forecast_json['summary']
+        else:
+            weather_text = str(forecast_json['weather'][0]['description']).title()
+
+        # Derive the icon from the icon + decription info
+        weather_icon = self._get_weather_icon(forecast_json['weather'][0]['icon'], forecast_json['weather'][0]['description'])
 
         forecast = ForecastData(
-            forecast_datetime= datetime.fromtimestamp(forecast_json['time'])
+            forecast_datetime= datetime.fromtimestamp(forecast_json['dt'])
             , is_nighttime_forecast= False
-            , current_temperature= forecast_json.get('temperature', None)
-            , feels_like_temperature= forecast_json.get('apparentTemperature', None)
-            , relative_humidity= forecast_json['humidity'] * 100
+            , current_temperature= temp
+            , feels_like_temperature= feels_like
+            , relative_humidity= forecast_json['humidity']
 
-            , high_temperature= forecast_json.get('temperatureMax', None)
-            , low_temperature= forecast_json.get('temperatureMin', None)
-            , feels_like_high= forecast_json.get('apparentTemperatureHigh', None)
-            , feels_like_low= forecast_json.get('apparentTemperatureLow', None)
+            , low_temperature= temp_min
+            , high_temperature= temp_max
+            , feels_like_low= feels_like_min
+            , feels_like_high= feels_like_max
 
             , precipitation_type= precipitation_type
             , precipitation_icon= precipitation_icon
             , precipitation_probability= precipitation_probability
-            , precipitation_amount= forecast_json.get('precipAccumulation', None)
+            , precipitation_amount= precipitation_accumulation
 
-            , weather_icon_raw= forecast_json['icon']
-            , weather_icon= self._weather_icon_map[forecast_json['icon']]
-            , weather_text= forecast_json['summary']
+            , weather_text= weather_text
+            , weather_icon_raw= forecast_json['weather'][0]['icon']
+            , weather_icon= weather_icon
 
             , sunrise_time= sunrise
             , sunset_time= sunset
@@ -374,60 +433,6 @@ class OpenWeather(WeatherForecast):
 
         log.debug('Exiting _parse_daily_conditions()')
         return forecast_updated
-
-    def _parse_alerts(self, response, refresh_interval_minutes=30):
-        log.debug('Entering _parse_alerts()')
-
-        # If there's no alerts data, create empty collection and update next_refresh
-        if response is None:
-            alerts_collection = WeatherAlertsCollection(
-                alerts= []
-                # Set forecast expiration time to 30 minutes from now
-                , next_refresh= datetime.now()
-                                + timedelta(minutes=refresh_interval_minutes)
-            )
-
-        # Alert response exists, parse it
-        else:
-            alerts = []
-            for item in response:
-                effective_start= datetime.fromtimestamp(item['time'])
-                effective_end= datetime.fromtimestamp(item['expires'])
-
-                alerts.append(WeatherAlert(
-                    title= item['title']
-                    , regions= item['regions']
-                    , severity= item['severity']
-                    , description= item['description']
-                    , effective_start= effective_start
-                    , effective_end= effective_end
-                ))
-
-            alerts_collection = WeatherAlertsCollection(
-                alerts= alerts
-                # Set forecast expiration time to 30 minutes from now
-                , next_refresh= datetime.now()
-                                + timedelta(minutes=refresh_interval_minutes)
-            )
-
-        # If response matches existing data, indicate that the alerts weren't updated
-        # Always update the object so next_refresh is accurate
-        if self.alerts == alerts_collection:
-            alerts_updated = False
-        else:
-            alerts_updated = True
-
-        self.alerts = alerts_collection
-        log.debug(f'Alerts updated. Next refresh: {str(self.alerts.next_refresh)}')
-
-        log.debug('Exiting _parse_alerts()')
-        return alerts_updated
-
-    def _get_alerts(self):
-        logging.critical('This method should not be called directly for this service. '
-                         'Alerts are included in standard data payload.'
-        )
-        raise NotImplementedError
 
     def refresh(self):
         '''
