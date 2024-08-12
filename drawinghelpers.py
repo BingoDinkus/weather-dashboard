@@ -33,7 +33,7 @@ class Text():
         self.canvas = canvas
         self.text = text
         self.font = font
-        self.width, self.height = canvas.textsize(text, font= font)
+        _, _, self.width, self.height = canvas.textbbox((0, 0), text, font= font)
 
     def coords(self):
         return (self.width, self.height)

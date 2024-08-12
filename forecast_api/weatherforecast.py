@@ -23,11 +23,11 @@ log = logging.getLogger(__name__)
 
 class WeatherServices(Enum):
     ACCUWEATHER = 1
-    DARKSKY = 2
+    OPENWEATHER = 2
 
 WeatherServices_Display_Names = {
     1: 'AccuWeather'
-    , 2: 'DarkSky'
+    , 2: 'OpenWeather'
 }
 
 class UnitType(Enum):
@@ -39,7 +39,7 @@ class WeatherForecast(ABC):
         Base class that for weather forecasting.
         Each service inherits from this class.
     '''
-    def __init__(self, weather_service, unit_type, lat_long, api_key=None, nws_user_agent=None):
+    def __init__(self, weather_service, unit_type, lat_long, api_key=None, lang=None, nws_user_agent=None):
         # Parameter assignment
         self.weather_service = weather_service
         self.weather_service_display_name = WeatherServices_Display_Names[weather_service.value]
@@ -47,6 +47,9 @@ class WeatherForecast(ABC):
         self.api_key = api_key
         self.unit_type = unit_type
         self.lat_long = lat_long
+        self.lat = lat_long.split(',')[0]
+        self.long = lat_long.split(',')[1]
+        self.lang = lang
         self.nws_user_agent = nws_user_agent
 
         self._base_url = None
