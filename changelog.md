@@ -1,3 +1,9 @@
+# v2.0.0: OpenWeather API and more
+* Removed DarkSky API (due to service being discontinued)
+* Added support for OpenWeather API to replace DarkSky
+* Updated to work with Pillow 10.0 and Windows
+
+
 # v1.04: Calendar Fix (2020-11-17)
 * Fixed crash caused by calendar event not having a summary
 

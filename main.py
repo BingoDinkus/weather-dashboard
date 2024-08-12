@@ -21,9 +21,10 @@ from pathlib import Path
 import textwrap
 import time
 import os
+import platform
 
 # Consts
-DEBUG = False
+DEBUG = True
 
 DAILY_DESCRIP_MAX_CHARS = 13
 DAILY_DESCRIP_MAX_ROWS = 3
@@ -52,6 +53,7 @@ logging_config_path = Path('logging_config.ini')
 fileConfig(logging_config_path, disable_existing_loggers=False)
 log = logging.getLogger()
 
+# Alignment aliases
 TOP = dh.VerticalAlignment.TOP
 MIDDLE = dh.VerticalAlignment.MIDDLE
 BOTTOM = dh.VerticalAlignment.BOTTOM
@@ -59,6 +61,17 @@ BOTTOM = dh.VerticalAlignment.BOTTOM
 LEFT = dh.HorizontalAlignment.LEFT
 CENTER = dh.HorizontalAlignment.CENTER
 RIGHT = dh.HorizontalAlignment.RIGHT
+
+# strf definitions
+# In order to deal with inconsistent format defintions between Linux and Windows
+if platform.system() == 'Windows':
+    month_day = '%b %#d'
+    hour_ampm = '%#I %p'
+    hour_minute_ampm = '%#I:%M %p'
+else:
+    month_day = '%b %-d'
+    hour_ampm = '%-I %p'
+    hour_minute_ampm = '%-I:%M %p'
 
 def main():
     log.info('Starting application...')
@@ -79,19 +92,20 @@ def main():
             quiet_hours.add(int(item))
 
     # Create AccuWeather object
-    forecast = f.AccuWeather(
-        api_key= app_config['AccuWeather']['api_key']
-        , unit_type= f.UnitType.IMPERIAL
-        , lat_long= app_config['Global']['lat_long']
-        , nws_user_agent= app_config['NWS']['user_agent']
-    )
-
-    # Create DarkSky weather object
-    # forecast = f.DarkSky(
-    #     api_key= app_config['DarkSky']['api_key']
+    # forecast = f.AccuWeather(
+    #     api_key= app_config['AccuWeather']['api_key']
     #     , unit_type= f.UnitType.IMPERIAL
     #     , lat_long= app_config['Global']['lat_long']
+    #     , nws_user_agent= app_config['NWS']['user_agent']
     # )
+
+    # Create OpenWeather weather object
+    forecast = f.OpenWeather(
+        api_key= app_config['OpenWeather']['api_key']
+        , unit_type= f.UnitType.IMPERIAL
+        , lat_long= app_config['Global']['lat_long']
+        , lang= app_config['OpenWeather']['language']
+    )
 
     # Create Google Calendar object
     calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR)
@@ -440,7 +454,8 @@ def draw_hourly_panel(canvas, fonts, forecast):
         item = forecast[i]
 
         # Strings
-        hour_str = item.forecast_datetime.strftime('%-I %p').lower()
+        hour_str = item.forecast_datetime.strftime(hour_ampm).lower()
+
         temperature_str = item.current_temperature.display()
         feels_like_str = item.feels_like_temperature.display()
         precip_probability_str = f'{round(item.precipitation_probability)}%'
@@ -501,7 +516,7 @@ def draw_daily_panel(canvas, fonts, forecast):
 
         # Strings
         day_of_week_str = item.forecast_datetime.strftime('%A')
-        date_str = item.forecast_datetime.strftime('%b %-d')
+        date_str = item.forecast_datetime.strftime(month_day)
 
         high_temperature_str = item.high_temperature.display()
         low_temperature_str = item.low_temperature.display()
@@ -555,8 +570,8 @@ def draw_footer(canvas, fonts, weather_service):
     log.debug('Entering draw_footer()')
 
     # Text objects
-    last_update_str = (datetime.now().strftime('%b %-d at %-I:%M ')
-                        + datetime.now().strftime('%p').lower())
+    last_update_str = (datetime.now().strftime(f'{month_day} at ')
+                    + datetime.now().strftime(hour_ampm).lower())
     last_update = dh.Text(canvas, f'Last updated on {last_update_str}', fonts['Roboto']['Tiny'])
     powered_by = dh.Text(canvas, f'Powered by {weather_service}', fonts['Roboto']['Tiny'])
 
@@ -593,7 +608,7 @@ def draw_alerts(img, canvas, alert, assests_path, fonts):
     # Adjust alert text until it fits in allocated space
     alert_text = alert.title
     while True:
-        alert_str = f"{alert_text} {preposition} {time.strftime('%-m-%-d %-I:%M %p').lower()}"
+        alert_str = f"{alert_text} {preposition} {time.strftime(f'{month_day} {hour_minute_ampm}').lower()}"
         alert = dh.Text(canvas, alert_str, fonts['Roboto']['Small'])
 
         # If it fits, break the loop
@@ -697,17 +712,13 @@ def draw_upcoming_events(canvas, fonts, calendar):
                     time_frame_str = 'All day'
                 elif item.end_date is None:
                     time_frame_str = ('Starting at '
-                                f'{item.start_date.strftime("%-I:%M")} '
-                                f'{item.start_date.strftime("%p")[:-1].lower()}')
+                                f'{item.start_date.strftime(hour_minute_ampm)[:-1].lower()}')
                 elif item.start_date is None:
                     time_frame_str = ('Until '
-                                f'{item.end_date.strftime("%-I:%M")} '
-                                f'{item.end_date.strftime("%p")[:-1].lower()}')
+                                f'{item.end_date.strftime(hour_minute_ampm)[:-1].lower()}')
                 else:
-                    time_frame_str = (f'{item.start_date.strftime("%-I:%M")} '
-                                f'{item.start_date.strftime("%p")[:-1].lower()} - '
-                                f'{item.end_date.strftime("%-I:%M")} '
-                                f'{item.end_date.strftime("%p")[:-1].lower()}')
+                    time_frame_str = (f'{item.start_date.strftime(hour_minute_ampm)[:-1].lower()} - '
+                                f'{item.end_date.strftime(hour_minute_ampm)[:-1].lower()}')
 
                 time_frame = dh.Text(canvas, time_frame_str, fonts['Roboto']['Small'])
                 event_rows.append(time_frame)
@@ -769,4 +780,8 @@ def draw_upcoming_events(canvas, fonts, calendar):
     log.debug('Exiting draw_upcoming_events()')
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except:
+        log.exception('Exception caught at the top level')
+        raise

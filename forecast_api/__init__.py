@@ -12,4 +12,4 @@ from forecast_api.weatherforecast import WeatherForecast
 
 # Derived API classes
 from forecast_api.accuweather import AccuWeather
-from forecast_api.darksky import DarkSky
+from forecast_api.openweather import OpenWeather

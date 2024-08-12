@@ -1,0 +1,35 @@
+Shopping List:
+* Raspberry Pi Zero WH (Zero W with Headers)
+    * Adafruit: https://www.adafruit.com/product/3708
+    * Case: https://www.adafruit.com/product/3252
+* Screen:
+    * Waveshare: https://www.waveshare.com/product/7.5inch-e-paper-hat.htm
+    * Amazon: https://www.amazon.com/dp/B075R4QY3L
+* Frame:
+    * 5"x7" Deep Profile Metal Table Frame: https://www.target.com/p/5-34-x7-34-deep-profile-metal-table-frame-black-threshold-8482/-/A-88666767?preselect=88666767
+* Velcro strips:
+    * Command Narrow Picture Hanging Strips: https://www.target.com/p/command-narrow-picture-hanging-strips/-/A-81531976?preselect=81531976
+
+
+Weather.gov API user-agent:
+https://www.weather.gov/documentation/services-web-api
+
+Google needed:
+    https://developers.google.com/calendar/api/quickstart/python
+    get oauth json creds
+        https://console.cloud.google.com/apis/credentials?project=weather-dashboard-250112
+
+Waveshare setup:
+    https://www.waveshare.com/wiki/7.5inch_e-Paper_HAT_Manual#Working_With_Raspberry_Pi
+    Before installing lg library, `sudo apt install swig python3-dev python3-setuptools` (from https://github.com/gpiozero/lg)
+
+
+
+
+
+# ToDo
+* Update for WaveShare 7.5" v2 ePaper screen (higher res)
+* Revisit drawinghelpers for Pillow 10
+* G-Calender support for time zones
+* Change config to toml and include template
+* Rewrite readme
