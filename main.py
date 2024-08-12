@@ -92,19 +92,20 @@ def main():
             quiet_hours.add(int(item))
 
     # Create AccuWeather object
-    forecast = f.AccuWeather(
-        api_key= app_config['AccuWeather']['api_key']
-        , unit_type= f.UnitType.IMPERIAL
-        , lat_long= app_config['Global']['lat_long']
-        , nws_user_agent= app_config['NWS']['user_agent']
-    )
-
-    # Create DarkSky weather object
-    # forecast = f.DarkSky(
-    #     api_key= app_config['DarkSky']['api_key']
+    # forecast = f.AccuWeather(
+    #     api_key= app_config['AccuWeather']['api_key']
     #     , unit_type= f.UnitType.IMPERIAL
     #     , lat_long= app_config['Global']['lat_long']
+    #     , nws_user_agent= app_config['NWS']['user_agent']
     # )
+
+    # Create OpenWeather weather object
+    forecast = f.OpenWeather(
+        api_key= app_config['OpenWeather']['api_key']
+        , unit_type= f.UnitType.IMPERIAL
+        , lat_long= app_config['Global']['lat_long']
+        , lang= app_config['OpenWeather']['language']
+    )
 
     # Create Google Calendar object
     calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR)
@@ -569,8 +570,8 @@ def draw_footer(canvas, fonts, weather_service):
     log.debug('Entering draw_footer()')
 
     # Text objects
-    last_update_str = (datetime.now().strftime(f'{month_day} at {hour_ampm} ')
-                    + datetime.now().strftime('%p').lower())
+    last_update_str = (datetime.now().strftime(f'{month_day} at ')
+                    + datetime.now().strftime(hour_ampm).lower())
     last_update = dh.Text(canvas, f'Last updated on {last_update_str}', fonts['Roboto']['Tiny'])
     powered_by = dh.Text(canvas, f'Powered by {weather_service}', fonts['Roboto']['Tiny'])
 
@@ -783,3 +784,4 @@ if __name__ == '__main__':
         main()
     except:
         log.exception('Exception caught at the top level')
+        raise
