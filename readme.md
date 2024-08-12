@@ -17,8 +17,8 @@ Included calendar services:
 * Google Calendar
 
 Included forecast services:
-* Darksky
-* AccuWeather
+* [AccuWeather](https://developer.accuweather.com/)
+* [OpenWeather](https://openweathermap.org/api/one-call-3)
 
 ## Hardware ##
 My project is running on a [Raspberry Pi Zero WH](https://www.adafruit.com/product/3708) (Zero W with GPIO headers), and a [7.5" monochrome Waveshare e-Paper screen](https://www.waveshare.com/product/mini-pc/raspberry-pi/displays/e-paper/7.5inch-e-paper-hat.htm). The screen has a fairly poor resolution, resulting it jagged text (as seen in the picture above).
@@ -37,7 +37,7 @@ For AccuWeather, sign up at https://www.developer.accuweather.com/. Paste the AP
 
 **Note**: the free service only offers 50 API calls per day and multiple API calls are necessary to get the complete data set. Due to the limited number of API calls, I recommend using another service, such as DarkSky, when testing.
 
-For Darksky, sign up at https://darksky.net/dev. Paste the API Key in the `[DarkSky]` section, under `api_key`. The free service offers 1,000 API calls a day, and a single API call provides every forecast element.
+For OpenWeather, sign up at https://openweathermap.org/api/one-call-3. Paste the API Key in the `[OpenWeather]` section, under `api_key`. The service offers 1,000 free API calls a day, and a single API call provides every forecast element. The service requires a credit card on file, but you can also cap the daily nubmer of calls to 1,000 and avoid additional charges.
 
 For Google Calendar access, you'll need to create a new Oauth Client ID at https://console.developers.google.com/apis/credentials/. Once the client ID has been created, you can click the download button to download a credentials.json file. Rename this to "gcal_credentials.json" and place it in the calendar_api folder.
 
