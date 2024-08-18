@@ -3,9 +3,13 @@
 
 # Project specific
 dashboard.bmp
+app_config.toml
+
+# Ignore patterns
 *.old.*
 *.new.*
 *.ignore.*
+*.nosync.*
 
 # Log files/folders
 logs/

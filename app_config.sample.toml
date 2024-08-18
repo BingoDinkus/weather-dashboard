@@ -1,0 +1,17 @@
+[global]
+weather_provider = 'OpenWeather'
+lat_long = "40.6976307,-74.1448279"
+unit_type = 'imperial'
+quiet_hours = [0, 1, 2, 3, 4, 5]
+
+[accuweather]
+api_key =  "abc123"
+language = "en-us"
+
+[openweather]
+api_key = "abc123"
+language = "en"
+units = "imperial"
+
+[nws]
+user_agent = "(weather-dashboard, myemail@email.com)"
