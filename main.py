@@ -9,7 +9,6 @@
 __author__ = 'Eric J. Harlan'
 __license__ = "GPLv3"
 
-import configparser
 from datetime import datetime, timedelta
 import drawinghelpers as dh
 import logging
@@ -20,6 +19,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 import textwrap
 import time
+import tomllib
 import os
 import platform
 
@@ -76,36 +76,43 @@ else:
 def main():
     log.info('Starting application...')
 
-    # Set up app config
-    app_config_path = Path('app_config.ini')
-    app_config = configparser.ConfigParser()
-    app_config.read(app_config_path)
+    # Read config file
+    with open('app_config.toml', 'rb') as config_file:
+        app_config = tomllib.load(config_file)
 
-    # Fill quiet_hours set from config
-    quiet_hours_raw = app_config['Global'].get('quiet_hours')
-    quiet_hours = set()
+    weather_provider = app_config['global']['weather_provider'].lower()
+    lat_long = app_config['global']['lat_long']
+    quiet_hours = set(app_config['global'].get('quiet_hours', {}))
 
-    # If quiet_hours is in config file, split on comma
-    # and add each item to the quiet_hours set
-    if quiet_hours_raw:
-        for item in quiet_hours_raw.split(','):
-            quiet_hours.add(int(item))
+    # Match units in config to UnitType enum
+    config_unit = app_config['global'].get('unit_type', '').lower()
 
-    # Create AccuWeather object
-    # forecast = f.AccuWeather(
-    #     api_key= app_config['AccuWeather']['api_key']
-    #     , unit_type= f.UnitType.IMPERIAL
-    #     , lat_long= app_config['Global']['lat_long']
-    #     , nws_user_agent= app_config['NWS']['user_agent']
-    # )
+    if config_unit == 'metric':
+        unit_type = f.UnitType.METRIC
+    elif config_unit == 'imperial':
+        unit_type = f.UnitType.IMPERIAL
+    else:
+        log.warn('Unit Type not specified or not supported. Defaulting to Imperial units.')
+        unit_type = f.UnitType.IMPERIAL
 
-    # Create OpenWeather weather object
-    forecast = f.OpenWeather(
-        api_key= app_config['OpenWeather']['api_key']
-        , unit_type= f.UnitType.IMPERIAL
-        , lat_long= app_config['Global']['lat_long']
-        , lang= app_config['OpenWeather']['language']
-    )
+    if weather_provider == 'accuweather':
+        # Create AccuWeather object
+        forecast = f.AccuWeather(
+            api_key= app_config['accuweather']['api_key']
+            , unit_type= unit_type
+            , lat_long= lat_long
+            , nws_user_agent= app_config['nws']['user_agent']
+        )
+    elif weather_provider == 'openweather':
+        # Create OpenWeather weather object
+        forecast = f.OpenWeather(
+            api_key= app_config['openweather']['api_key']
+            , unit_type= unit_type
+            , lat_long= lat_long
+            , lang= app_config['openweather']['language']
+        )
+    else:
+        raise AttributeError('Weather Provider not specified or not supported.')
 
     # Create Google Calendar object
     calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR)
