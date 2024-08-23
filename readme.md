@@ -43,7 +43,8 @@ For Google Calendar access, you'll need to create a new Oauth Client ID at https
 
 Google requires OAuth to access data on your calendar. You will have to run the code on a computer with a screen, so that you can approve access. Once permission has been granted, you will not need to reapprove access (unless permission is revoked from your Google account). I approved the permission request on my Mac, before deploying to the monitor-less Pi.
 
-### Libraries ###
+### Time Zone ###
+If a `time_zone` is included in the config file, the Google Calendar API will convert all events to this time zone. For a list of valid IANA time zone names, see [Wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
 
 #### Pillow ####
 This program uses the Pillow library to construct an image, which is then pushed to the screen. Follow the [Pillow installation instructions](https://pillow.readthedocs.io/en/stable/installation.html) for both the Python module, as well as the external libraries libjpeg and zlib

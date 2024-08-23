@@ -18,13 +18,14 @@ import requests
 log = logging.getLogger(__name__)
 
 class AccuWeather(WeatherForecast):
-    def __init__(self, api_key, unit_type, lat_long, nws_user_agent=None):
+    def __init__(self, api_key, unit_type, lat_long, time_zone, nws_user_agent=None):
         self._MAX_API_CALLS = 50 # Free service offers 50 free api requests
 
         WeatherForecast.__init__(self
                                 , weather_service= WeatherServices.ACCUWEATHER
                                 , unit_type= unit_type
                                 , lat_long= lat_long
+                                , time_zone= time_zone
                                 , api_key= api_key
                                 , nws_user_agent= nws_user_agent)
         self._location_key = None

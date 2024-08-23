@@ -83,6 +83,7 @@ def main():
     weather_provider = app_config['global']['weather_provider'].lower()
     lat_long = app_config['global']['lat_long']
     quiet_hours = set(app_config['global'].get('quiet_hours', {}))
+    time_zone = app_config['global'].get('time_zone')
 
     # Match units in config to UnitType enum
     config_unit = app_config['global'].get('unit_type', '').lower()
@@ -101,6 +102,7 @@ def main():
             api_key= app_config['accuweather']['api_key']
             , unit_type= unit_type
             , lat_long= lat_long
+            , time_zone = time_zone
             , nws_user_agent= app_config['nws']['user_agent']
         )
     elif weather_provider == 'openweather':
@@ -109,13 +111,14 @@ def main():
             api_key= app_config['openweather']['api_key']
             , unit_type= unit_type
             , lat_long= lat_long
+            , time_zone = time_zone
             , lang= app_config['openweather']['language']
         )
     else:
         raise AttributeError('Weather Provider not specified or not supported.')
 
     # Create Google Calendar object
-    calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR)
+    calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR, time_zone)
 
     run_application(forecast, calendar, quiet_hours)
 
@@ -578,7 +581,7 @@ def draw_footer(canvas, fonts, weather_service):
 
     # Text objects
     last_update_str = (datetime.now().strftime(f'{month_day} at ')
-                    + datetime.now().strftime(hour_ampm).lower())
+                    + datetime.now().strftime(hour_minute_ampm).lower())
     last_update = dh.Text(canvas, f'Last updated on {last_update_str}', fonts['Roboto']['Tiny'])
     powered_by = dh.Text(canvas, f'Powered by {weather_service}', fonts['Roboto']['Tiny'])
 
