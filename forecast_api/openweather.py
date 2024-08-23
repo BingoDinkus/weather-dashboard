@@ -18,13 +18,14 @@ import requests
 log = logging.getLogger(__name__)
 
 class OpenWeather(WeatherForecast):
-    def __init__(self, api_key, unit_type, lat_long, lang):
+    def __init__(self, api_key, unit_type, lat_long, time_zone, lang):
         self._MAX_API_CALLS = 1000 # Service offers 1,000 per day for free
 
         WeatherForecast.__init__(self
                                 , weather_service= WeatherServices.OPENWEATHER
                                 , unit_type= unit_type
                                 , lat_long= lat_long
+                                , time_zone= time_zone
 
                                 , api_key= api_key
                                 , lang= lang

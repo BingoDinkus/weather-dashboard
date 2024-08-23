@@ -19,10 +19,11 @@ class CalendarAPI(ABC):
         Base class for calendar API services
         Cannot be called `calendar` because Google code breaks
     '''
-    def __init__(self, calendar_service):
+    def __init__(self, calendar_service, time_zone):
         self.calendar_service = calendar_service
         self.events = {}
         self.next_refresh = datetime.min
+        self.time_zone = time_zone
 
     def __contains__(self, right_operand):
         '''

@@ -39,7 +39,7 @@ class WeatherForecast(ABC):
         Base class that for weather forecasting.
         Each service inherits from this class.
     '''
-    def __init__(self, weather_service, unit_type, lat_long, api_key=None, lang=None, nws_user_agent=None):
+    def __init__(self, weather_service, unit_type, lat_long, time_zone, api_key=None, lang=None, nws_user_agent=None):
         # Parameter assignment
         self.weather_service = weather_service
         self.weather_service_display_name = WeatherServices_Display_Names[weather_service.value]
@@ -49,6 +49,7 @@ class WeatherForecast(ABC):
         self.lat_long = lat_long
         self.lat = lat_long.split(',')[0]
         self.long = lat_long.split(',')[1]
+        self.time_zone= time_zone
         self.lang = lang
         self.nws_user_agent = nws_user_agent
 
