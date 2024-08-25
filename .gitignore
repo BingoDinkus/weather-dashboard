@@ -4,6 +4,7 @@
 # Project specific
 dashboard.bmp
 app_config.toml
+.lgd-nfy0
 
 # Ignore patterns
 *.old.*

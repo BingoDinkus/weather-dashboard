@@ -24,7 +24,7 @@ import os
 import platform
 
 # Consts
-DEBUG = True
+DEBUG = False
 
 DAILY_DESCRIP_MAX_CHARS = 13
 DAILY_DESCRIP_MAX_ROWS = 3
@@ -35,12 +35,12 @@ CALENDAR_TITLE_MAX_ROWS = 2
 ALLOW_ALERTS_TO_OVERLAP = True
 
 SCREEN_WIDTH = 640
-SCREEN_HEIGHT = 384
+SCREEN_HEIGHT = 480
 
 # Library not available on dev computer
 # Only import if not in debug mode
 if not DEBUG:
-    from wave_share import epd7in5
+    from wave_share import epd7in5_V2
 
 # Set working directory to script location
 os.chdir(Path(__file__).resolve().parent)
@@ -234,13 +234,13 @@ def run_application(forecast, calendar, quiet_hours):
                         img.save('dashboard.bmp')
                     else:
                         log.info('Initializing screen...')
-                        epd = epd7in5.EPD()
+                        epd = epd7in5_V2.EPD()
                         epd.init()
+                        epd.Clear()
 
                         log.info('Updating screen...')
                         epd.display(epd.getbuffer(img))
                         time.sleep(2)
-                        epd.sleep()
                 else:
                     log.info('Screen update not needed')
 
@@ -266,7 +266,6 @@ def run_application(forecast, calendar, quiet_hours):
         finally:
             if not DEBUG:
                 log.info('Sleeping display...')
-                time.sleep(2)
                 epd.sleep()
 
     log.debug('Exiting run_application()')

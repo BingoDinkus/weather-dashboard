@@ -203,7 +203,8 @@ class OpenWeather(WeatherForecast):
             'lon': {self.long},
             'appid': {self.api_key},
             'units': {units},
-            'lang': {self.lang}
+            'lang': {self.lang},
+            'exclude': 'minutely,alerts'
         }
 
         try:
@@ -235,6 +236,7 @@ class OpenWeather(WeatherForecast):
         current_refresh = self._parse_current_conditions(j['current'])
         hourly_refresh = self._parse_hourly_conditions(j['hourly'])
         daily_refresh = self._parse_daily_conditions(j['daily'])
+        alerts_refresh = self._get_alerts()
 
         log.debug('Exiting _make_request()')
         return current_refresh or hourly_refresh or daily_refresh or alerts_refresh
