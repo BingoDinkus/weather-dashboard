@@ -76,12 +76,12 @@ class GoogleCalendar(CalendarAPI):
         log.debug('Exiting _get_credentials()')
         return creds
 
-    def _get_calender_ids(self, calendar_service):
+    def _get_calendar_ids(self, calendar_service):
         '''
             Gets a list of calendar ids on the account
             Returns a list of all calendar ids
         '''
-        log.debug('Entering _get_calender_ids()')
+        log.debug('Entering _get_calendar_ids()')
 
         # Loop through all calendars to get their ids
         calendar_ids = []
@@ -97,7 +97,7 @@ class GoogleCalendar(CalendarAPI):
             if not page_token:
                 break
 
-        log.debug('Entering _get_calender_ids()')
+        log.debug('Entering _get_calendar_ids()')
         return calendar_ids
 
     def _get_events(self):
@@ -114,7 +114,7 @@ class GoogleCalendar(CalendarAPI):
                                 , cache_discovery=False)
 
         # Get all calendars ids
-        calendar_ids = self._get_calender_ids(calendar_service)
+        calendar_ids = self._get_calendar_ids(calendar_service)
 
         # Call the Calendar API
         now = datetime.utcnow().isoformat() + 'Z' # 'Z' indicates UTC time

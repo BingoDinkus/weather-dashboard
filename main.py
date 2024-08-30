@@ -9,12 +9,14 @@
 __author__ = 'Eric J. Harlan'
 __license__ = "GPLv3"
 
+import forecast_api as f
+import calendar_api as c
+import display_controller as d
+
 from datetime import datetime, timedelta
 import drawinghelpers as dh
 import logging
 from logging.config import fileConfig
-import forecast_api as f
-import calendar_api as c
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 import textwrap
@@ -39,8 +41,8 @@ SCREEN_HEIGHT = 480
 
 # Library not available on dev computer
 # Only import if not in debug mode
-if not DEBUG:
-    from wave_share import epd7in5_V2
+# if not DEBUG:
+#     from wave_share import epd7in5_V2
 
 # Set working directory to script location
 os.chdir(Path(__file__).resolve().parent)
@@ -80,7 +82,11 @@ def main():
     with open('app_config.toml', 'rb') as config_file:
         app_config = tomllib.load(config_file)
 
+    global DEBUG
+    DEBUG = app_config['global']['debug_mode']
+
     weather_provider = app_config['global']['weather_provider'].lower()
+    display_controller = app_config['display']['display_controller'].lower()
     lat_long = app_config['global']['lat_long']
     quiet_hours = set(app_config['global'].get('quiet_hours', {}))
     time_zone = app_config['global'].get('time_zone')
@@ -96,6 +102,7 @@ def main():
         log.warn('Unit Type not specified or not supported. Defaulting to Imperial units.')
         unit_type = f.UnitType.IMPERIAL
 
+    # Create forecast object
     if weather_provider == 'accuweather':
         # Create AccuWeather object
         forecast = f.AccuWeather(
@@ -117,14 +124,20 @@ def main():
     else:
         raise AttributeError('Weather Provider not specified or not supported.')
 
+    # Create display object
+    if display_controller == 'waveshare_epaper':
+        display = d.Waveshare_ePaper(model= app_config['display']['model'], debug_mode=DEBUG)
+    else:
+        raise AttributeError('Weather Provider not specified or not supported.')
+
     # Create Google Calendar object
     calendar = c.GoogleCalendar(c.CalendarServices.GOOGLECALENDAR, time_zone)
 
-    run_application(forecast, calendar, quiet_hours)
+    run_application(display, forecast, calendar, quiet_hours)
 
     log.debug('Exiting application')
 
-def run_application(forecast, calendar, quiet_hours):
+def run_application(display, forecast, calendar, quiet_hours):
     log.debug('Entering run_application()')
 
     # Create pathlib path to assets
@@ -229,18 +242,22 @@ def run_application(forecast, calendar, quiet_hours):
                         draw_alerts(img, canvas, forecast.alerts.alerts[0], assests_path, fonts)
                     draw_upcoming_events(canvas, fonts, calendar)
 
-                    if DEBUG:
-                        log.info('Pushing image to dashboard.bmp')
-                        img.save('dashboard.bmp')
-                    else:
-                        log.info('Initializing screen...')
-                        epd = epd7in5_V2.EPD()
-                        epd.init()
-                        epd.Clear()
+                    # if DEBUG:
+                    #     log.info('Pushing image to dashboard.bmp')
+                    #     img.save('dashboard.bmp')
+                    # else:
+                    #     log.info('Initializing screen...')
+                    #     epd = epd7in5_V2.EPD()
+                    #     epd.init()
+                    #     epd.Clear()
 
-                        log.info('Updating screen...')
-                        epd.display(epd.getbuffer(img))
-                        time.sleep(2)
+                    #     log.info('Updating screen...')
+                    #     epd.display(epd.getbuffer(img))
+                    #     time.sleep(2)
+
+                    log.info('Pushing image to dashboard.bmp')
+                    img.save('dashboard.bmp')
+                    display.display_image(img)
                 else:
                     log.info('Screen update not needed')
 
@@ -263,10 +280,10 @@ def run_application(forecast, calendar, quiet_hours):
         except KeyboardInterrupt:
             log.info('Keyboard Interrupt detected. Exiting loop...')
             break
-        finally:
-            if not DEBUG:
-                log.info('Sleeping display...')
-                epd.sleep()
+        # finally:
+            # if not DEBUG:
+            #     log.info('Sleeping display...')
+            #     epd.sleep()
 
     log.debug('Exiting run_application()')
 
