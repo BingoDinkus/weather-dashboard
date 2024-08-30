@@ -1,9 +1,11 @@
 [global]
 weather_provider = 'OpenWeather'
+# weather_provider = 'AccuWeather'
 lat_long = "40.6976307,-74.1448279"
 unit_type = 'imperial'
 quiet_hours = [0, 1, 2, 3, 4, 5]
 time_zone = "America/New_York"
+debug_mode = false
 
 [accuweather]
 api_key =  "abc123"
@@ -13,6 +15,9 @@ language = "en-us"
 api_key = "abc123"
 language = "en"
 
+[display]
+display_controller = 'waveshare_epaper'
+model = 'epd7in5_v2'
 
 [nws]
 user_agent = "(weather-dashboard, myemail@email.com)"
