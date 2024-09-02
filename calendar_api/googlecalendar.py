@@ -27,8 +27,11 @@ class GoogleCalendar(CalendarAPI):
     '''
         A class derived from CalendarAPI that implements the Google Calendar API
     '''
-    def __init__(self, calendar_service, time_zone):
-        CalendarAPI.__init__(self, calendar_service, time_zone)
+    def __init__(self, time_zone):
+        super().__init__(
+            calendar_service= 'Google'
+            , time_zone= time_zone
+        )
 
     def _get_credentials(self):
         '''
@@ -177,7 +180,7 @@ class GoogleCalendar(CalendarAPI):
         if datetime.now() >= self.next_refresh:
             new_events = self._get_events()
 
-            new_calendar = GoogleCalendar(CalendarServices.GOOGLECALENDAR, self.time_zone)
+            new_calendar = GoogleCalendar(self.time_zone)
             for item in new_events:
                 new_calendar.add_event(item)
 

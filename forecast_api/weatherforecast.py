@@ -12,7 +12,6 @@ __license__ = "GPLv3"
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from enum import Enum
 import logging
 import requests
 
@@ -20,19 +19,6 @@ from forecast_api.weatheralert import WeatherAlert, WeatherAlertsCollection
 from forecast_api.forecastdata import ForecastDataCollection
 
 log = logging.getLogger(__name__)
-
-class WeatherServices(Enum):
-    ACCUWEATHER = 1
-    OPENWEATHER = 2
-
-WeatherServices_Display_Names = {
-    1: 'AccuWeather'
-    , 2: 'OpenWeather'
-}
-
-class UnitType(Enum):
-    METRIC = 1
-    IMPERIAL = 2
 
 class WeatherForecast(ABC):
     '''
@@ -42,7 +28,6 @@ class WeatherForecast(ABC):
     def __init__(self, weather_service, unit_type, lat_long, time_zone, api_key=None, lang=None, nws_user_agent=None):
         # Parameter assignment
         self.weather_service = weather_service
-        self.weather_service_display_name = WeatherServices_Display_Names[weather_service.value]
         self.has_nighttime_forecasts = None
         self.api_key = api_key
         self.unit_type = unit_type

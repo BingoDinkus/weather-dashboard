@@ -2,7 +2,9 @@
 * Removed DarkSky API (due to service being discontinued)
 * Added support for OpenWeather API to replace DarkSky
 * Updated to work with Pillow 10.0 and Windows
-
+* Adds a new display_controller class to allow for easier support for additional display models
+* Adds a new dashboard class, moving application logic from main.py
+* Removes enums to simplify code
 
 # v1.04: Calendar Fix (2020-11-17)
 * Fixed crash caused by calendar event not having a summary
