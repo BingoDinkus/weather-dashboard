@@ -21,13 +21,14 @@ class AccuWeather(WeatherForecast):
     def __init__(self, api_key, unit_type, lat_long, time_zone, nws_user_agent=None):
         self._MAX_API_CALLS = 50 # Free service offers 50 free api requests
 
-        WeatherForecast.__init__(self
-                                , weather_service= WeatherServices.ACCUWEATHER
-                                , unit_type= unit_type
-                                , lat_long= lat_long
-                                , time_zone= time_zone
-                                , api_key= api_key
-                                , nws_user_agent= nws_user_agent)
+        super().__init__(
+            weather_service= 'AccuWeather'
+            , unit_type= unit_type
+            , lat_long= lat_long
+            , time_zone= time_zone
+            , api_key= api_key
+            , nws_user_agent= nws_user_agent
+        )
         self._location_key = None
         self._base_url = 'http://dataservice.accuweather.com'
 
@@ -241,7 +242,7 @@ class AccuWeather(WeatherForecast):
         # Get full details so that payload includes Real Feel
         params = {'details': 'true'}
 
-        if self.unit_type == UnitType.METRIC:
+        if self.unit_type == 'metric':
             params['metric'] = 'true'
         else:
             params['metric'] = 'false'
@@ -311,7 +312,7 @@ class AccuWeather(WeatherForecast):
         # Get full details so that payload includes Real Feel
         params = {'details': 'true'}
 
-        if self.unit_type == UnitType.METRIC:
+        if self.unit_type == 'metric':
             params['metric'] = 'true'
         else:
             params['metric'] = 'false'

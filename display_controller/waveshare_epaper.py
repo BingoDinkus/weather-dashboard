@@ -34,7 +34,7 @@ supported_models = {
 
 class Waveshare_ePaper(Display):
     def __init__(self, model, debug_mode):
-        model = model.lower()
+        model = model.casefold()
 
         if model not in supported_models:
             log.exception(f'{model} is not a supported display model')

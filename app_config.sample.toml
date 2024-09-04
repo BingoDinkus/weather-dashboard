@@ -1,6 +1,9 @@
-[global]
-weather_provider = 'OpenWeather'
-# weather_provider = 'AccuWeather'
+[dashboard]
+display_controller = 'waveshare_epaper'
+weather_provider = 'openweather'
+# weather_provider = 'accuweather'
+calendar_provider = 'google'
+
 lat_long = "40.6976307,-74.1448279"
 unit_type = 'imperial'
 quiet_hours = [0, 1, 2, 3, 4, 5]
@@ -15,8 +18,7 @@ language = "en-us"
 api_key = "abc123"
 language = "en"
 
-[display]
-display_controller = 'waveshare_epaper'
+[waveshare_epaper]
 model = 'epd7in5_v2'
 
 [nws]

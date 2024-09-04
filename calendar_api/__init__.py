@@ -1,6 +1,3 @@
-# Enums
-from calendar_api.calendarsapi import CalendarServices
-
 # Classes
 from calendar_api.calendarevents import CalendarEvent
 from calendar_api.calendarsapi import CalendarAPI

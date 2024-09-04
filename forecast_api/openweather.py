@@ -21,15 +21,15 @@ class OpenWeather(WeatherForecast):
     def __init__(self, api_key, unit_type, lat_long, time_zone, lang):
         self._MAX_API_CALLS = 1000 # Service offers 1,000 per day for free
 
-        WeatherForecast.__init__(self
-                                , weather_service= WeatherServices.OPENWEATHER
-                                , unit_type= unit_type
-                                , lat_long= lat_long
-                                , time_zone= time_zone
+        super().__init__(
+                weather_service= 'OpenWeather'
+                , unit_type= unit_type
+                , lat_long= lat_long
+                , time_zone= time_zone
 
-                                , api_key= api_key
-                                , lang= lang
-                        )
+                , api_key= api_key
+                , lang= lang
+        )
         self.has_nighttime_forecasts = False
         self.api_calls_remaining = self._MAX_API_CALLS
 
@@ -193,16 +193,11 @@ class OpenWeather(WeatherForecast):
 
         url = f'{self._base_url}/onecall'
 
-        if self.unit_type == UnitType.IMPERIAL:
-            units = 'imperial'
-        else:
-            units = 'metric'
-
         params = {
             'lat': {self.lat},
             'lon': {self.long},
             'appid': {self.api_key},
-            'units': {units},
+            'units': {self.unit_type},
             'lang': {self.lang},
             'exclude': 'minutely,alerts'
         }

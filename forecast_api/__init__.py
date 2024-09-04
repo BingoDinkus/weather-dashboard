@@ -1,7 +1,3 @@
-# Enums
-from forecast_api.weatherforecast import WeatherServices
-from forecast_api.weatherforecast import UnitType
-
 # Classes
 from forecast_api.forecastdata import Temperature
 from forecast_api.forecastdata import ForecastData

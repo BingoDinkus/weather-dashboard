@@ -7,12 +7,8 @@ __license__ = "GPLv3"
 
 from abc import ABC, abstractmethod
 from datetime import datetime, date, time, timedelta
-from enum import Enum
 
 from calendar_api.calendarevents import CalendarEvent
-
-class CalendarServices(Enum):
-    GOOGLECALENDAR = 1
 
 class CalendarAPI(ABC):
     '''
@@ -42,7 +38,7 @@ class CalendarAPI(ABC):
 
     def __eq__(self, right_operand):
         return (
-            self.calendar_service == right_operand.calendar_service
+            self.calendar_service.casefold() == right_operand.calendar_service.casefold()
             and self.events == right_operand.events
         )
 
