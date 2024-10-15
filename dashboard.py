@@ -13,15 +13,17 @@ import forecast_api
 import calendar_api
 import display_controller
 
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 import drawinghelpers as dh
 import logging
-from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+import pickle
 import textwrap
 import time
 import tomllib
 import platform
+import os
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +41,7 @@ class Dashboard():
         self.debug_mode = self.config['dashboard'].get('debug_mode', False)
         self.quiet_hours = set(self.config['dashboard'].get('quiet_hours', {}))
         self.time_zone = self.config['dashboard'].get('time_zone')
+        self.next_refresh = datetime.min
 
         if platform.system() == 'Windows':
             self.month_day = '%b %#d'
@@ -61,9 +64,12 @@ class Dashboard():
             log.warn('Unit Type not specified or not supported. Defaulting to Imperial units.')
             unit_type = 'imperial'
 
-        self._init_display()
-        self._init_forecast()
-        self._init_calendar()
+        # Attempt to restore session from pickle file
+        # If unsuccessful, initialize items
+        if not self._restore_session():
+            self._init_display()
+            self._init_forecast()
+            self._init_calendar()
 
         # Create pathlib path to assets
         # Set up fonts
@@ -155,98 +161,136 @@ class Dashboard():
             except:
                 raise AttributeError('Calendar Provider not specified.')
 
+    def _restore_session(self):
+        '''
+            Attempts to restore session state from pickle file
+            This allows the script to exit completely after each run
+            and pick up on the next run
+
+            Returns:
+                Boolean: True if session successfully loaded
+        '''
+        log.info('Entering save_session()')
+
+        success = False
+
+        pickle_path = Path('dashboard.pickle')
+        if pickle_path.is_file():
+            log.debug('Dashboard pickle file exists')
+
+            config_mdate = datetime.fromtimestamp(os.path.getmtime('app_config.toml'))
+            pickle_mdate = datetime.fromtimestamp(os.path.getmtime('dashboard.pickle'))
+
+            log.debug(f'app_config.toml last modified: {config_mdate}')
+            log.debug(f'dashboard.pickle last modified: {pickle_mdate}')
+
+            if config_mdate < pickle_mdate:
+                log.info('app_config has not been modified recently. Opening pickle file and restoring data.')
+
+                with open(pickle_path, 'rb') as f:
+                    data = pickle.load(f)
+
+                    self.display = data[0]
+                    self.forecast = data[1]
+                    self.calendar = data[2]
+
+                    success = True
+            else:
+                log.info('app_config has been updated since last run. Ignoring dashboard.pickle.')
+        else:
+            log.info('Dashboard pickle file does not exist')
+
+        return success
+
+    def _save_session(self):
+        '''
+            Saves the current dashboard state into a pickle file
+        '''
+        log.info('Entering _save_session()')
+
+        pickle_path = Path('dashboard.pickle')
+
+        data = [self.display, self.forecast, self.calendar]
+        with open(pickle_path, 'wb') as f:
+            log.debug('Dumping dashboard into pickle file')
+            pickle.dump(data, f)
+
+        log.info('Exiting save_session()')
+
     def run(self):
-        log.debug('Entering run_application()')
+        log.debug('Entering run()')
 
-        # Initialize
-        next_refresh = datetime.min
+        try:
+            # Check to see if the current hour is a quiet hour
+            if datetime.now().hour in self.quiet_hours:
+                log.info(f'The current hour ({datetime.now().hour}:00) is a quiet hour. Sleeping for an hour.')
 
-        # Loop continuously, for app life-cycle
-        while True:
-            try:
-                # Check to see if the current hour is a quiet hour
-                if datetime.now().hour in self.quiet_hours:
-                    log.info(f'The current hour ({datetime.now().hour}:00) is a quiet hour. Sleeping for an hour.')
+                # If next_refresh is initial value,
+                # set it to the current time
+                if self.next_refresh == datetime.min:
+                    self.next_refresh = datetime.now()
 
-                    # If next_refresh is initial value,
-                    # set it to the current time
-                    if next_refresh == datetime.min:
-                        next_refresh = datetime.now()
+                self.next_refresh += timedelta(hours= 1)
+            else:
+                # Invoke refresh method, store result to push screen refresh if needed
+                screen_update_needed_forecast = self.forecast.refresh()
+                log.debug(f'Calendar refresh exited with status: {screen_update_needed_forecast}')
+                screen_update_needed_calendar = self.calendar.refresh()
+                log.debug(f'Calendar refresh exited with status: {screen_update_needed_calendar}')
 
-                    next_refresh = next_refresh + timedelta(hours= 1)
-                else:
-                    # Invoke refresh method, store result to push screen refresh if needed
-                    screen_update_needed_forecast = self.forecast.refresh()
-                    log.debug(f'Calendar refresh exited with status: {screen_update_needed_forecast}')
-                    screen_update_needed_calendar = self.calendar.refresh()
-                    log.debug(f'Calendar refresh exited with status: {screen_update_needed_calendar}')
+                screen_update_needed = screen_update_needed_forecast or screen_update_needed_calendar
 
-                    screen_update_needed = screen_update_needed_forecast or screen_update_needed_calendar
+                # Don't use calendar for next_refresh, just forecast
+                self.next_refresh = self.forecast.get_next_refresh()
+                log.debug(f'Next refresh: {self.next_refresh}')
 
-                    # Don't use calendar for next_refresh, just forecast
-                    next_refresh = self.forecast.get_next_refresh()
-                    log.debug(f'Next refresh: {next_refresh}')
+                if self.forecast.api_calls_remaining < 1:
+                    log.critical(f'All forecast API calls have been exhausted.')
+                    screen_update_needed = False
 
-                    if self.forecast.api_calls_remaining < 1:
-                        log.critical(f'All forecast API calls have been exhausted.')
-                        screen_update_needed = False
+                if screen_update_needed:
+                    daily_forecasts = self.forecast.get_daytime_forecasts()
 
-                    if screen_update_needed:
-                        daily_forecasts = self.forecast.get_daytime_forecasts()
-
-                        # Initialize image and canvas
-                        # If it's after 6 pm, display tonight or tomorrow,
-                        # depending on service's offerings
-                        if datetime.now().hour >= 18:
-                            if self.forecast.has_nighttime_forecasts:
-                                img = Image.open(str((self.assests_path / 'images/background_tonight.bmp').absolute()))
-                                top_right_panel_forecast = self.forecast.get_nighttime_forecasts()[0]
-                                daily_forecasts = daily_forecasts[1:]
-                            else:
-                                img = Image.open(str((self.assests_path / 'images/background_tomorrow.bmp').absolute()))
-                                top_right_panel_forecast = daily_forecasts[1]
-                                daily_forecasts = daily_forecasts[2:]
-                        else:
-                            img = Image.open(str((self.assests_path / 'images/background_today.bmp').absolute()))
-                            top_right_panel_forecast = daily_forecasts[0]
+                    # Initialize image and canvas
+                    # If it's after 6 pm, display tonight or tomorrow,
+                    # depending on service's offerings
+                    if datetime.now().hour >= 18:
+                        if self.forecast.has_nighttime_forecasts:
+                            img = Image.open(str((self.assests_path / 'images/background_tonight.bmp').absolute()))
+                            top_right_panel_forecast = self.forecast.get_nighttime_forecasts()[0]
                             daily_forecasts = daily_forecasts[1:]
-                        self.canvas = ImageDraw.Draw(img)
-
-                        self.draw_now_panel()
-                        self.draw_top_right_panel(top_right_panel_forecast)
-                        self.draw_hourly_panel()
-                        self.draw_daily_panel(daily_forecasts)
-                        self.draw_footer()
-                        self.draw_alerts(img)
-                        self.draw_upcoming_events()
-
-                        log.info('Pushing image to dashboard.bmp')
-                        img.save('dashboard.bmp')
-                        self.display.display_image(img)
+                        else:
+                            img = Image.open(str((self.assests_path / 'images/background_tomorrow.bmp').absolute()))
+                            top_right_panel_forecast = daily_forecasts[1]
+                            daily_forecasts = daily_forecasts[2:]
                     else:
-                        log.info('Screen update not needed')
+                        img = Image.open(str((self.assests_path / 'images/background_today.bmp').absolute()))
+                        top_right_panel_forecast = daily_forecasts[0]
+                        daily_forecasts = daily_forecasts[1:]
+                    self.canvas = ImageDraw.Draw(img)
 
-                    next_refresh = self.forecast.get_next_refresh()
+                    self.draw_now_panel()
+                    self.draw_top_right_panel(top_right_panel_forecast)
+                    self.draw_hourly_panel()
+                    self.draw_daily_panel(daily_forecasts)
+                    self.draw_footer()
+                    self.draw_alerts(img)
+                    self.draw_upcoming_events()
 
-                # Determine how long to sleep
-                sleep_needed_seconds = (next_refresh - datetime.now()).total_seconds()
-                if sleep_needed_seconds < 0:
-                    log.warning(f'Sleep needed less than zero. Setting value to 0.')
-                    sleep_needed_seconds = 0
+                    log.info('Pushing image to dashboard.bmp')
+                    img.save('dashboard.bmp')
+                    self.display.display_image(img)
+                else:
+                    log.info('Screen update not needed')
 
-                log.info(f'Next refresh at {next_refresh}')
-                log.info(f'Sleeping for {sleep_needed_seconds} seconds...')
-                if self.debug_mode:
-                    # Don't loop endlessly in debug mode
-                    log.info('Debug mode, aborting app loop')
-                    break
+                self.next_refresh = self.forecast.get_next_refresh()
 
-                time.sleep(sleep_needed_seconds)
-            except KeyboardInterrupt:
-                log.info('Keyboard Interrupt detected. Exiting loop...')
-                break
+                self._save_session()
 
-        log.debug('Exiting run_application()')
+        except Exception:
+            log.exception('Exception caught at runtime.')
+
+        log.debug('Exiting run()')
 
     def draw_now_panel(self):
         log.debug('Entering draw_now_panel()')
