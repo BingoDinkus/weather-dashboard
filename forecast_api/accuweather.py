@@ -198,8 +198,8 @@ class AccuWeather(WeatherForecast):
 
             new_forecast = ForecastData(
                 forecast_datetime= datetime.strptime(forecast_date, '%Y-%m-%dT%H:%M:%S%z')
-                , current_temperature= response['Temperature'][str(self.unit_type.name).title()]['Value']
-                , feels_like_temperature= response['RealFeelTemperature'][str(self.unit_type.name).title()]['Value']
+                , current_temperature= response['Temperature'][str(self.unit_type).title()]['Value']
+                , feels_like_temperature= response['RealFeelTemperature'][str(self.unit_type).title()]['Value']
                 , weather_icon_raw= response['WeatherIcon']
                 , weather_icon= self._weather_icon_map[response['WeatherIcon']]
                 , weather_text= response['WeatherText']
