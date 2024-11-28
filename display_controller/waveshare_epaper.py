@@ -62,7 +62,8 @@ class Waveshare_ePaper(Display):
             log.info('Pushing image to display...')
 
             log.info('Initializing screen...')
-            self.epd = self.driver_module.EPD()
+            driver_module = importlib.import_module(self.driver_module_name)
+            self.epd = driver_module.EPD()
             self.epd.init()
             self.epd.Clear()
 
