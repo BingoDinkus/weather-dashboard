@@ -49,43 +49,38 @@ class Waveshare_ePaper(Display):
             debug_mode= debug_mode
         )
 
-        if not debug_mode:
-            # self.driver_module = importlib.import_module(f'display_controller.waveshare.{supported_models[model]["driver_module"]}')
-            self.driver_module_name = f'display_controller.waveshare.{supported_models[model]["driver_module"]}'
-            atexit.register(self.cleanup)
-
     def display_image(self, image, sleep_display=True):
-
         if self.debug_mode:
             log.info('debug_mode = True, display will not be updated.')
         else:
-            log.info('Pushing image to display...')
+            try:
+                log.info('Pushing image to display...')
 
-            log.info('Initializing screen...')
-            driver_module = importlib.import_module(self.driver_module_name)
-            self.epd = driver_module.EPD()
-            self.epd.init()
-            self.epd.Clear()
+                log.info('Initializing screen...')
+                driver_module = importlib.import_module(self.driver_module_name)
+                epd = driver_module.EPD()
+                epd.init()
+                epd.Clear()
 
-            self.epd.display(self.epd.getbuffer(image))
-            time.sleep(2)
-
-            if sleep_display:
-                log.info('Putting display to sleep')
-                self.epd.sleep()
+                epd.display(epd.getbuffer(image))
+                time.sleep(2)
+            except KeyboardInterrupt:
+                log.info('Keyboard interrupt detected, exiting.')
+                driver_module.epdconfig.module_exit(cleanup=True)
+            except Exception as e:
+                log.exception('Exception thrown when displaying image.')
+            finally:
+                if sleep_display:
+                    log.info('Putting display to sleep')
+                    epd.sleep()
 
     def clear(self):
         if self.debug_mode:
             log.info('debug_mode = True, display will not be cleared.')
         else:
-            self.epd.init()
-            self.epd.Clear()
-            self.epd.sleep()
-
-    def cleanup(self):
-        if self.debug_mode:
-            log.info('debug_mode = True, clean-up not needed.')
-        else:
-            log.info('Running clean-up function')
             driver_module = importlib.import_module(self.driver_module_name)
-            driver_module.epdconfig.module_exit(cleanup=True)
+            epd = driver_module.EPD()
+
+            epd.init()
+            epd.Clear()
+            epd.sleep()
