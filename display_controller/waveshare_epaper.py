@@ -51,6 +51,7 @@ class Waveshare_ePaper(Display):
 
         if not debug_mode:
             # self.driver_module = importlib.import_module(f'display_controller.waveshare.{supported_models[model]["driver_module"]}')
+            self.driver_module_name = f'display_controller.waveshare.{supported_models[model]["driver_module"]}'
             atexit.register(self.cleanup)
 
     def display_image(self, image, sleep_display=True):
@@ -85,5 +86,5 @@ class Waveshare_ePaper(Display):
             log.info('debug_mode = True, clean-up not needed.')
         else:
             log.info('Running clean-up function')
-            driver_module = importlib.import_module(f'display_controller.waveshare.{supported_models[model]["driver_module"]}')
+            driver_module = importlib.import_module(self.driver_module_name)
             driver_module.epdconfig.module_exit(cleanup=True)
