@@ -206,7 +206,7 @@ class OpenWeather(WeatherForecast):
             response = requests.get(url, params=params)
             response.raise_for_status()
         except Exception as err: #requests.exceptions.HTTPError as err:
-            log.exception(f'Request failed.')
+            log.exception('Request failed.')
 
             self._log_response_details(response)
 
@@ -220,18 +220,23 @@ class OpenWeather(WeatherForecast):
             # Return False indicating nothing was updated
             return False
 
-        # Parse calls used from header, use to set calls remaining
-        # api_calls_used = int(response.headers['X-Forecast-API-Calls'])
-        # self.api_calls_remaining = self._MAX_API_CALLS - api_calls_used
-        # log.info(f'{self.api_calls_remaining} OpenWeather API calls remaining')
+        try:
+            j = response.json()
+            self._timezone_offset = j.get('timezone_offset', 0)
 
-        j = response.json()
-        self._timezone_offset = j.get('timezone_offset', 0)
+            current_refresh = self._parse_current_conditions(j['current'])
+            hourly_refresh = self._parse_hourly_conditions(j['hourly'])
+            daily_refresh = self._parse_daily_conditions(j['daily'])
+            alerts_refresh = self._get_alerts()
+        except Exception:
+            # Log exception and dump json to file for debugging
+            log.exception('Failed to parse forecast')
 
-        current_refresh = self._parse_current_conditions(j['current'])
-        hourly_refresh = self._parse_hourly_conditions(j['hourly'])
-        daily_refresh = self._parse_daily_conditions(j['daily'])
-        alerts_refresh = self._get_alerts()
+            with open(f'openweather response {datetime.now().strftime('%Y-%m-%d %H%M%S')}.json', 'w') as f:
+                f.write(response.text)
+
+            # Rethrow exception
+            raise
 
         log.debug('Exiting _make_request()')
         return current_refresh or hourly_refresh or daily_refresh or alerts_refresh
@@ -263,7 +268,7 @@ class OpenWeather(WeatherForecast):
             rain_mm = rain_mm['1h']
 
         snow_mm = forecast_json.get('snow', 0)
-        if isinstance(rain_mm, dict):
+        if isinstance(snow_mm, dict):
             snow_mm = snow_mm['1h']
 
         precipitation_accumulation = rain_mm + snow_mm
@@ -371,7 +376,7 @@ class OpenWeather(WeatherForecast):
         '''
             Handles parsing current condition data and updating object
         '''
-        log.debug('Entering _parse_current_conditions()')
+        log.debug('Entering _parse_hourly_conditions()')
 
         # Loop through all forecast items, adding them to a list
         forecasts = []
@@ -397,7 +402,7 @@ class OpenWeather(WeatherForecast):
 
         self.hourly_forecasts = forecast_collection
 
-        log.debug('Exiting _parse_current_conditions()')
+        log.debug('Exiting _parse_hourly_conditions()')
         return forecast_updated
 
     def _parse_daily_conditions(self, response, refresh_interval_minutes=60):

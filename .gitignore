@@ -4,6 +4,7 @@
 # Project specific
 dashboard.bmp
 app_config.toml
+openweather response *.json
 .lgd-nfy0
 
 # Ignore patterns
