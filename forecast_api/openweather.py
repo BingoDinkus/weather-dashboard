@@ -232,7 +232,7 @@ class OpenWeather(WeatherForecast):
             # Log exception and dump json to file for debugging
             log.exception('Failed to parse forecast')
 
-            with open(f'openweather response {datetime.now().strftime('%Y-%m-%d %H%M%S')}.json', 'w') as f:
+            with open(f'openweather response {datetime.now().strftime("%Y-%m-%d %H%M%S")}.json', 'w') as f:
                 f.write(response.text)
 
             # Rethrow exception
