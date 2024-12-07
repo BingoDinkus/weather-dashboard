@@ -23,15 +23,3 @@ Google needed:
 Waveshare setup:
     https://www.waveshare.com/wiki/7.5inch_e-Paper_HAT_Manual#Working_With_Raspberry_Pi
     Before installing lg library, `sudo apt install swig python3-dev python3-setuptools` (from https://github.com/gpiozero/lg)
-
-
-# ToDo
-* Update for WaveShare 7.5" v2 ePaper screen (higher res)
-* Revisit drawinghelpers for Pillow 10
-* Rewrite readme
-* Push data to file so that script can end each run
-* Move refresh interval to config
-
-# Done
-* 2024-08-18 Change config to toml and include template
-* 2024-08-22 G-Calendar support for time zones
