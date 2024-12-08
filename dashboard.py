@@ -170,7 +170,7 @@ class Dashboard():
             Returns:
                 Boolean: True if session successfully loaded
         '''
-        log.info('Entering save_session()')
+        log.info('Entering _restore_session()')
 
         success = False
 
@@ -200,6 +200,7 @@ class Dashboard():
         else:
             log.info('Dashboard pickle file does not exist')
 
+        log.info('Exiting _restore_session()')
         return success
 
     def _save_session(self):
