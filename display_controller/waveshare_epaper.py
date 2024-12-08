@@ -49,6 +49,8 @@ class Waveshare_ePaper(Display):
             debug_mode= debug_mode
         )
 
+        self.driver_module_name = supported_models[model]['driver_module']
+
     def display_image(self, image, sleep_display=True):
         if self.debug_mode:
             log.info('debug_mode = True, display will not be updated.')
