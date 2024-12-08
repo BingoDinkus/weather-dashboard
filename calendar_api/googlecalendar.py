@@ -12,10 +12,11 @@ from calendar_api.calendarsapi import *
 
 from datetime import datetime, date, time, timedelta
 import logging
-import pickle
+# import pickle
 from pathlib import Path
 from googleapiclient.discovery import build as gbuild
-from google_auth_oauthlib.flow import InstalledAppFlow
+# from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2 import service_account
 from google.auth.transport.requests import Request as gRequest
 
 log = logging.getLogger(__name__)
@@ -35,12 +36,7 @@ class GoogleCalendar(CalendarAPI):
 
     def _get_credentials(self):
         '''
-            Checks to see if pickle.token exists and is valid
-            Opens browser for OAuth if needed, and saves credentials
-            Returns credential object
-
-            Almost an exact copy of the quickstart process
-            https://developers.google.com/calendar/quickstart/python
+            Creates credentials object from service account file
         '''
         log.debug('Entering _get_credentials()')
 
@@ -49,32 +45,11 @@ class GoogleCalendar(CalendarAPI):
 
         folder = Path(__file__).resolve().parent
 
-        creds = None
-        # The file token.pickle stores the user's access and refresh tokens, and is
-        # created automatically when the authorization flow completes for the firsist
-        # time.
-        token_path = folder / 'token.pickle'
+        log.debug('Reading secret file')
+        service_account_file = folder / 'weather-dashboard-secret.json'
 
-        if token_path.is_file():
-            with open(token_path, 'rb') as token:
-                log.debug('Token exists, opening file')
-                creds = pickle.load(token)
-        # If there are no (valid) credentials available, let the user log in.
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                log.debug('Creds expired, refreshing token')
-                creds.refresh(gRequest())
-            else:
-                log.debug('Token missing, running OAuth flow')
-                credentials_path = folder / 'gcal_credentials.json'
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    credentials_path, SCOPES)
-                creds = flow.run_local_server(port=0)
-
-            # Save the credentials for the next run
-            log.debug('Dumping token into pickle file')
-            with open(token_path, 'wb') as token:
-                pickle.dump(creds, token)
+        log.debug('Creating credentials object')
+        creds = service_account.Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
 
         log.debug('Exiting _get_credentials()')
         return creds

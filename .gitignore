@@ -1,5 +1,6 @@
 # Credential files
 *.pickle
+weather-dashboard-secret.json
 
 # Project specific
 dashboard.bmp
