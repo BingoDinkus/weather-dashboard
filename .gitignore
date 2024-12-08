@@ -1,5 +1,6 @@
 # Credential files
 *.pickle
+gcal_credentials.json
 
 # Project specific
 dashboard.bmp
