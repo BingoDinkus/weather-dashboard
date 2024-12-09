@@ -39,7 +39,7 @@ Waveshare setup:
    - `python3 -m venv .venv`
    - `source .venv/bin/activate`
    - `python3 -m pip install --upgrade pip`
-   - `pip3 install google-api-python-client google-auth-httplib2 google-auth-oauthlib Pillow`
+   - `pip3 install google-api-python-client google-auth-httplib2 google-auth-oauthlib pillow RPi.GPIO spidev gpiozero lgpio`
 5. Setup your [Waveshare screen](https://www.waveshare.com/wiki/7.5inch_e-Paper_HAT_Manual#Working_With_Raspberry_Pi): This will vary from model to model. I've included the link and steps I followed for my Waveshare 7.5" v2 screen.
    1. Enable SPI
       1. `sudo raspi-config`
