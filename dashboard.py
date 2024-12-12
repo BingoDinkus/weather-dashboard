@@ -710,7 +710,7 @@ class Dashboard():
         # Adjust alert text until it fits in allocated space
         alert_text = alert.title
         while True:
-            alert_str = f"{alert_text} {preposition} {time.strftime(f'{self.month_day} {self.hour_minute_ampm}').lower()}"
+            alert_str = f"{alert_text} {preposition} {time.strftime(self.month_day)} {time.strftime(self.hour_minute_ampm).lower()}"
             alert = dh.Text(self.canvas, alert_str, self.fonts['Roboto']['Small'])
 
             # If it fits, break the loop

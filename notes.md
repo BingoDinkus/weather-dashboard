@@ -87,7 +87,17 @@ These steps were written using Raspian Lite ("Raspbian GNU/Linux 12 (bookworm)",
           2. Copy the "token.pickle" file and paste it into your Home directory in the Linux section (On the left bar: Linux > Ubuntu > Home > <user>)
           3. Open a Linux bash terminal and use the `scp` command to copy the file to the Pi: `scp ./token.pickle <user>@<host>:~/weather-dashboard/calendar_api`
    3. Test your Weather Dashboard
-      1. ~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py
-   4. Cron
+      1. `~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py`
+   4. Set up Cron
+      -  Cron is used to schedule tasks and will be used to set up a refresh schedule for your Weather Dashboard
+      -  For help tweaking your schedule, use [crontab.guru](https://crontab.guru/)
+      1. `crontab -e`
+      2. First time setup: Select a text editor. I prefer nano for small edits.
+      3. At the bottom of the file, add your schedule and the command to run the script in its venv. I have my dashboard set to run every hour, at 15 after
+         1. `15 * * * *  ~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py`
+      4. *Optional:* Set the Dashboard to update on boot
+         1. `@reboot  ~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py`
+      5. Save the script (`Ctrl+O` and then `Enter` to confirm the file name)
+      6. Exit Nano (`Ctrl+X`)
 
 *Last Updated: 2024-12-11*
