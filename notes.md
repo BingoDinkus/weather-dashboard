@@ -96,7 +96,7 @@ These steps were written using Raspian Lite ("Raspbian GNU/Linux 12 (bookworm)",
       3. At the bottom of the file, add your schedule and the command to run the script in its venv. I have my dashboard set to run every hour, at 15 after
          1. `15 * * * *  ~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py`
       4. *Optional:* Set the Dashboard to update on boot
-         1. `@reboot  ~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py`
+         1. `@reboot     sleep 60 && ~/weather-dashboard/.venv/bin/python ~/weather-dashboard/main.py`
       5. Save the script (`Ctrl+O` and then `Enter` to confirm the file name)
       6. Exit Nano (`Ctrl+X`)
 
