@@ -49,7 +49,7 @@ class CalendarAPI(ABC):
         # Iterate through events dictionary, sorting key (date) ascending
         for key, val in sorted(self.events.items(), key= lambda x: str(x[0])):
             # Sort the day's events
-            val.sort(key= lambda x: (x.start_date, x.end_date))
+            val.sort(key= lambda x: (x.start_date or datetime(1900, 1, 1), x.end_date or datetime(1900, 1, 1)))
             # Multi-day events in progress may include events from previous days
             # Exclude them
             if key >= datetime.now().date():
