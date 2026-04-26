@@ -13,6 +13,7 @@ openweather response *.json
 *.new.*
 *.ignore.*
 *.nosync.*
+nosync/
 
 # Log files/folders
 logs/
